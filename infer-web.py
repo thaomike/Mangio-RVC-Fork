@@ -1,53 +1,59 @@
-import os
-import shutil
-import sys
-import json  # Mangio fork using json for preset saving
-import math
-
-import signal
-
-now_dir = os.getcwd()
-sys.path.append(now_dir)
-import traceback, pdb
-import warnings
-
-import numpy as np
-import torch
-import re
-
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["no_proxy"] = "localhost, 127.0.0.1, ::1"
-import logging
-import threading
-from random import shuffle
-from subprocess import Popen
-from time import sleep
-
-import faiss
-import ffmpeg
-import gradio as gr
-import soundfile as sf
-from config import Config
-from fairseq import checkpoint_utils
-from i18n import I18nAuto
+import pdb
+import traceback
+import scipy.io.wavfile as wavfile
+import re as regex
+import csv
+from sklearn.cluster import MiniBatchKMeans
+from vc_infer_pipeline import VC
+from train.process_ckpt import change_info, extract_small_model, merge, show_info
+from my_utils import load_audio, CSVutil
+from MDXNet import MDXNetDereverb
+from infer_uvr5 import _audio_pre_, _audio_pre_new
+from lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
 from lib.infer_pack.models import (
     SynthesizerTrnMs256NSFsid,
     SynthesizerTrnMs256NSFsid_nono,
     SynthesizerTrnMs768NSFsid,
     SynthesizerTrnMs768NSFsid_nono,
 )
-from lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
-from infer_uvr5 import _audio_pre_, _audio_pre_new
-from MDXNet import MDXNetDereverb
-from my_utils import load_audio, CSVutil
-from train.process_ckpt import change_info, extract_small_model, merge, show_info
-from vc_infer_pipeline import VC
-from sklearn.cluster import MiniBatchKMeans
+from i18n import I18nAuto
+from fairseq import checkpoint_utils
+from config import Config
+import soundfile as sf
+import gradio as gr
+import ffmpeg
+import faiss
+from time import sleep
+from subprocess import Popen
+from random import shuffle
+import threading
+import logging
+import re
+import torch
+import numpy as np
+import warnings
+import os
+import shutil
+import sys
+import json  # Mangio fork using json for preset saving
+import math
+import io
+import signal
+
+now_dir = os.getcwd()
+sys.path.append(now_dir)
+
+
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["no_proxy"] = "localhost, 127.0.0.1, ::1"
+
 
 tmp = os.path.join(now_dir, "TEMP")
 shutil.rmtree(tmp, ignore_errors=True)
-shutil.rmtree("%s/runtime/Lib/site-packages/infer_pack" % (now_dir), ignore_errors=True)
-shutil.rmtree("%s/runtime/Lib/site-packages/uvr5_pack" % (now_dir), ignore_errors=True)
+shutil.rmtree("%s/runtime/Lib/site-packages/infer_pack" %
+              (now_dir), ignore_errors=True)
+shutil.rmtree("%s/runtime/Lib/site-packages/uvr5_pack" %
+              (now_dir), ignore_errors=True)
 os.makedirs(tmp, exist_ok=True)
 os.makedirs(os.path.join(now_dir, "logs"), exist_ok=True)
 os.makedirs(os.path.join(now_dir, "audios"), exist_ok=True)
@@ -59,7 +65,6 @@ torch.manual_seed(114514)
 
 logging.getLogger("numba").setLevel(logging.WARNING)
 
-import csv
 
 if not os.path.isdir("csvdb/"):
     os.makedirs("csvdb")
@@ -70,7 +75,8 @@ if not os.path.isdir("csvdb/"):
 global DoFormant, Quefrency, Timbre
 
 try:
-    DoFormant, Quefrency, Timbre = CSVutil("csvdb/formanting.csv", "r", "formanting")
+    DoFormant, Quefrency, Timbre = CSVutil(
+        "csvdb/formanting.csv", "r", "formanting")
     DoFormant = (
         lambda DoFormant: True
         if DoFormant.lower() == "true"
@@ -78,7 +84,8 @@ try:
     )(DoFormant)
 except (ValueError, TypeError, IndexError):
     DoFormant, Quefrency, Timbre = False, 1.0, 1.0
-    CSVutil("csvdb/formanting.csv", "w+", "formanting", DoFormant, Quefrency, Timbre)
+    CSVutil("csvdb/formanting.csv", "w+",
+            "formanting", DoFormant, Quefrency, Timbre)
 
 config = Config()
 i18n = I18nAuto()
@@ -208,7 +215,8 @@ def get_indexes():
     for dirpath, dirnames, filenames in os.walk("./logs/"):
         for filename in filenames:
             if filename.endswith(".index") and "trained" not in filename:
-                indexes_list.append(os.path.join(dirpath, filename).replace("\\", "/"))
+                indexes_list.append(os.path.join(
+                    dirpath, filename).replace("\\", "/"))
     if len(indexes_list) > 0:
         return indexes_list
     else:
@@ -236,6 +244,7 @@ def get_fshift_presets():
 def vc_single(
     sid,
     input_audio_path0,
+    # input_file0: gr.File,
     input_audio_path1,
     f0_up_key,
     f0_file,
@@ -254,12 +263,22 @@ def vc_single(
     if input_audio_path0 is None or input_audio_path0 is None:
         return "You need to upload an audio", None
     f0_up_key = int(f0_up_key)
+    # print(input_audio_path0, input_audio_path1)
+
+    # if input_file0.name:
+    #     new_path = os.path.abspath(
+    #         os.getcwd()).replace("\\", "/") + "/" + "audios" + "/" + input_file0.name.split("/").pop()
+
+    #     shutil.move(input_file0.name, new_path)
+    #     input_audio_path0 = new_path
     try:
         if input_audio_path0 == "":
-            audio = load_audio(input_audio_path1, 16000, DoFormant, Quefrency, Timbre)
+            audio = load_audio(input_audio_path1, 16000,
+                               DoFormant, Quefrency, Timbre)
 
         else:
-            audio = load_audio(input_audio_path0, 16000, DoFormant, Quefrency, Timbre)
+            audio = load_audio(input_audio_path0, 16000,
+                               DoFormant, Quefrency, Timbre)
 
         audio_max = np.abs(audio).max() / 0.95
         if audio_max > 1:
@@ -346,11 +365,13 @@ def vc_multi(
         dir_path = (
             dir_path.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
         )  # 防止小白拷路径头尾带了空格和"和回车
-        opt_root = opt_root.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
+        opt_root = opt_root.strip(" ").strip(
+            '"').strip("\n").strip('"').strip(" ")
         os.makedirs(opt_root, exist_ok=True)
         try:
             if dir_path != "":
-                paths = [os.path.join(dir_path, name) for name in os.listdir(dir_path)]
+                paths = [os.path.join(dir_path, name)
+                         for name in os.listdir(dir_path)]
             else:
                 paths = [path.name for path in paths]
         except:
@@ -380,7 +401,8 @@ def vc_multi(
                     tgt_sr, audio_opt = opt
                     if format1 in ["wav", "flac", "mp3", "ogg", "aac"]:
                         sf.write(
-                            "%s/%s.%s" % (opt_root, os.path.basename(path), format1),
+                            "%s/%s.%s" % (opt_root,
+                                          os.path.basename(path), format1),
                             audio_opt,
                             tgt_sr,
                         )
@@ -408,12 +430,15 @@ def vc_multi(
 def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins, agg, format0):
     infos = []
     try:
-        inp_root = inp_root.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
+        inp_root = inp_root.strip(" ").strip(
+            '"').strip("\n").strip('"').strip(" ")
         save_root_vocal = (
-            save_root_vocal.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
+            save_root_vocal.strip(" ").strip(
+                '"').strip("\n").strip('"').strip(" ")
         )
         save_root_ins = (
-            save_root_ins.strip(" ").strip('"').strip("\n").strip('"').strip(" ")
+            save_root_ins.strip(" ").strip(
+                '"').strip("\n").strip('"').strip(" ")
         )
         if model_name == "onnx_dereverb_By_FoxJoy":
             pre_fun = MDXNetDereverb(15)
@@ -426,7 +451,8 @@ def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins, agg, format
                 is_half=config.is_half,
             )
         if inp_root != "":
-            paths = [os.path.join(inp_root, name) for name in os.listdir(inp_root)]
+            paths = [os.path.join(inp_root, name)
+                     for name in os.listdir(inp_root)]
         else:
             paths = [path.name for path in paths]
         for path in paths:
@@ -448,7 +474,8 @@ def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins, agg, format
                 need_reformat = 1
                 traceback.print_exc()
             if need_reformat == 1:
-                tmp_path = "%s/%s.reformatted.wav" % (tmp, os.path.basename(inp_path))
+                tmp_path = "%s/%s.reformatted.wav" % (
+                    tmp, os.path.basename(inp_path))
                 os.system(
                     "ffmpeg -i %s -vn -acodec pcm_s16le -ac 2 -ar 44100 %s -y"
                     % (inp_path, tmp_path)
@@ -463,7 +490,8 @@ def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins, agg, format
                 yield "\n".join(infos)
             except:
                 infos.append(
-                    "%s->%s" % (os.path.basename(inp_path), traceback.format_exc())
+                    "%s->%s" % (os.path.basename(inp_path),
+                                traceback.format_exc())
                 )
                 yield "\n".join(infos)
     except:
@@ -496,7 +524,7 @@ def get_vc(sid, to_return_protect0, to_return_protect1):
             hubert_model = net_g = n_spk = vc = hubert_model = tgt_sr = None
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            ###楼下不这么折腾清理不干净
+            # 楼下不这么折腾清理不干净
             if_f0 = cpt.get("f0", 1)
             version = cpt.get("version", "v1")
             if version == "v1":
@@ -548,12 +576,14 @@ def get_vc(sid, to_return_protect0, to_return_protect1):
     version = cpt.get("version", "v1")
     if version == "v1":
         if if_f0 == 1:
-            net_g = SynthesizerTrnMs256NSFsid(*cpt["config"], is_half=config.is_half)
+            net_g = SynthesizerTrnMs256NSFsid(
+                *cpt["config"], is_half=config.is_half)
         else:
             net_g = SynthesizerTrnMs256NSFsid_nono(*cpt["config"])
     elif version == "v2":
         if if_f0 == 1:
-            net_g = SynthesizerTrnMs768NSFsid(*cpt["config"], is_half=config.is_half)
+            net_g = SynthesizerTrnMs768NSFsid(
+                *cpt["config"], is_half=config.is_half)
         else:
             net_g = SynthesizerTrnMs768NSFsid_nono(*cpt["config"])
     del net_g.enc_q
@@ -633,7 +663,8 @@ def formant_enabled(
 ):
     if cbox:
         DoFormant = True
-        CSVutil("csvdb/formanting.csv", "w+", "formanting", DoFormant, qfrency, tmbre)
+        CSVutil("csvdb/formanting.csv", "w+",
+                "formanting", DoFormant, qfrency, tmbre)
 
         # print(f"is checked? - {cbox}\ngot {DoFormant}")
 
@@ -648,7 +679,8 @@ def formant_enabled(
 
     else:
         DoFormant = False
-        CSVutil("csvdb/formanting.csv", "w+", "formanting", DoFormant, qfrency, tmbre)
+        CSVutil("csvdb/formanting.csv", "w+",
+                "formanting", DoFormant, qfrency, tmbre)
 
         # print(f"is checked? - {cbox}\ngot {DoFormant}")
         return (
@@ -666,7 +698,8 @@ def formant_apply(qfrency, tmbre):
     Quefrency = qfrency
     Timbre = tmbre
     DoFormant = True
-    CSVutil("csvdb/formanting.csv", "w+", "formanting", DoFormant, qfrency, tmbre)
+    CSVutil("csvdb/formanting.csv", "w+",
+            "formanting", DoFormant, qfrency, tmbre)
 
     return (
         {"value": Quefrency, "__type__": "update"},
@@ -704,8 +737,9 @@ def preprocess_dataset(trainset_dir, exp_dir, sr, n_p):
         + str(config.noparallel)
     )
     print(cmd)
-    p = Popen(cmd, shell=True)  # , stdin=PIPE, stdout=PIPE,stderr=PIPE,cwd=now_dir
-    ###煞笔gr, popen read都非得全跑完了再一次性读取, 不用gr就正常读一句输出一句;只能额外弄出一个文本流定时读
+    # , stdin=PIPE, stdout=PIPE,stderr=PIPE,cwd=now_dir
+    p = Popen(cmd, shell=True)
+    # 煞笔gr, popen read都非得全跑完了再一次性读取, 不用gr就正常读一句输出一句;只能额外弄出一个文本流定时读
     done = [False]
     threading.Thread(
         target=if_done,
@@ -741,8 +775,9 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir, version19, echl):
             echl,
         )
         print(cmd)
-        p = Popen(cmd, shell=True, cwd=now_dir)  # , stdin=PIPE, stdout=PIPE,stderr=PIPE
-        ###煞笔gr, popen read都非得全跑完了再一次性读取, 不用gr就正常读一句输出一句;只能额外弄出一个文本流定时读
+        # , stdin=PIPE, stdout=PIPE,stderr=PIPE
+        p = Popen(cmd, shell=True, cwd=now_dir)
+        # 煞笔gr, popen read都非得全跑完了再一次性读取, 不用gr就正常读一句输出一句;只能额外弄出一个文本流定时读
         done = [False]
         threading.Thread(
             target=if_done,
@@ -763,7 +798,7 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir, version19, echl):
             log = f.read()
         print(log)
         yield log
-    ####对不同part分别开多进程
+    # 对不同part分别开多进程
     """
     n_part=int(sys.argv[1])
     i_part=int(sys.argv[2])
@@ -792,7 +827,7 @@ def extract_f0_feature(gpus, n_p, f0method, if_f0, exp_dir, version19, echl):
             cmd, shell=True, cwd=now_dir
         )  # , shell=True, stdin=PIPE, stdout=PIPE, stderr=PIPE, cwd=now_dir
         ps.append(p)
-    ###煞笔gr, popen read都非得全跑完了再一次性读取, 不用gr就正常读一句输出一句;只能额外弄出一个文本流定时读
+    # 煞笔gr, popen read都非得全跑完了再一次性读取, 不用gr就正常读一句输出一句;只能额外弄出一个文本流定时读
     done = [False]
     threading.Thread(
         target=if_done_multi,
@@ -1137,7 +1172,8 @@ def train_index(exp_dir1, version19):
     big_npy = big_npy[big_npy_idx]
     if big_npy.shape[0] > 2e5:
         # if(1):
-        infos.append("Trying doing kmeans %s shape to 10k centers." % big_npy.shape[0])
+        infos.append("Trying doing kmeans %s shape to 10k centers." %
+                     big_npy.shape[0])
         yield "\n".join(infos)
         try:
             big_npy = (
@@ -1161,7 +1197,8 @@ def train_index(exp_dir1, version19):
     n_ivf = min(int(16 * np.sqrt(big_npy.shape[0])), big_npy.shape[0] // 39)
     infos.append("%s,%s" % (big_npy.shape, n_ivf))
     yield "\n".join(infos)
-    index = faiss.index_factory(256 if version19 == "v1" else 768, "IVF%s,Flat" % n_ivf)
+    index = faiss.index_factory(
+        256 if version19 == "v1" else 768, "IVF%s,Flat" % n_ivf)
     # index = faiss.index_factory(256if version19=="v1"else 768, "IVF%s,PQ128x4fs,RFlat"%n_ivf)
     infos.append("training")
     yield "\n".join(infos)
@@ -1178,7 +1215,7 @@ def train_index(exp_dir1, version19):
     yield "\n".join(infos)
     batch_size_add = 8192
     for i in range(0, big_npy.shape[0], batch_size_add):
-        index.add(big_npy[i : i + batch_size_add])
+        index.add(big_npy[i: i + batch_size_add])
     faiss.write_index(
         index,
         "%s/added_IVF%s_Flat_nprobe_%s_%s_%s.index"
@@ -1236,7 +1273,7 @@ def train1key(
     )
 
     os.makedirs(model_log_dir, exist_ok=True)
-    #########step1:处理数据
+    # step1:处理数据
     open(preprocess_log_path, "w").close()
     cmd = (
         config.python_cmd
@@ -1250,7 +1287,7 @@ def train1key(
     p.wait()
     with open(preprocess_log_path, "r") as f:
         print(f.read())
-    #########step2a:提取音高
+    # step2a:提取音高
     open(extract_f0_feature_log_path, "w")
     if if_f0_3:
         yield get_info_str("step2a:正在提取音高")
@@ -1267,7 +1304,7 @@ def train1key(
             print(f.read())
     else:
         yield get_info_str(i18n("step2a:无需提取音高"))
-    #######step2b:提取特征
+    # step2b:提取特征
     yield get_info_str(i18n("step2b:正在提取特征"))
     gpus = gpus16.split("-")
     leng = len(gpus)
@@ -1290,7 +1327,7 @@ def train1key(
         p.wait()
     with open(extract_f0_feature_log_path, "r") as f:
         print(f.read())
-    #######step3a:训练模型
+    # step3a:训练模型
     yield get_info_str(i18n("step3a:正在训练模型"))
     # 生成filelist
     if if_f0_3:
@@ -1394,7 +1431,7 @@ def train1key(
     p = Popen(cmd, shell=True, cwd=now_dir)
     p.wait()
     yield get_info_str(i18n("训练结束, 您可查看控制台训练日志或实验文件夹下的train.log"))
-    #######step3b:训练索引
+    # step3b:训练索引
     npys = []
     listdir_res = list(os.listdir(feature_dir))
     for name in sorted(listdir_res):
@@ -1433,7 +1470,8 @@ def train1key(
     # n_ivf =  big_npy.shape[0] // 39
     n_ivf = min(int(16 * np.sqrt(big_npy.shape[0])), big_npy.shape[0] // 39)
     yield get_info_str("%s,%s" % (big_npy.shape, n_ivf))
-    index = faiss.index_factory(256 if version19 == "v1" else 768, "IVF%s,Flat" % n_ivf)
+    index = faiss.index_factory(
+        256 if version19 == "v1" else 768, "IVF%s,Flat" % n_ivf)
     yield get_info_str("training index")
     index_ivf = faiss.extract_index_ivf(index)  #
     index_ivf.nprobe = 1
@@ -1446,7 +1484,7 @@ def train1key(
     yield get_info_str("adding index")
     batch_size_add = 8192
     for i in range(0, big_npy.shape[0], batch_size_add):
-        index.add(big_npy[i : i + batch_size_add])
+        index.add(big_npy[i: i + batch_size_add])
     faiss.write_index(
         index,
         "%s/added_IVF%s_Flat_nprobe_%s_%s_%s.index"
@@ -1469,7 +1507,8 @@ def change_info_(ckpt_path):
         ) as f:
             info = eval(f.read().strip("\n").split("\n")[0].split("\t")[-1])
             sr, f0 = info["sample_rate"], info["if_f0"]
-            version = "v2" if ("version" in info and info["version"] == "v2") else "v1"
+            version = "v2" if (
+                "version" in info and info["version"] == "v2") else "v1"
             return sr, str(f0), version
     except:
         traceback.print_exc()
@@ -1526,8 +1565,6 @@ def export_onnx(ModelPath, ExportedPath):
 
 
 # region Mangio-RVC-Fork CLI App
-import re as regex
-import scipy.io.wavfile as wavfile
 
 cli_current_page = "HOME"
 
@@ -1919,7 +1956,8 @@ def match_index(sid0):
             if filename.endswith(".index"):
                 for i in range(len(indexes_list)):
                     if indexes_list[i] == (
-                        os.path.join(("./logs/" + folder), filename).replace("\\", "/")
+                        os.path.join(("./logs/" + folder),
+                                     filename).replace("\\", "/")
                     ):
                         # print('regular index found')
                         break
@@ -1985,6 +2023,16 @@ def whethercrepeornah(radio):
     return {"visible": mango, "__type__": "update"}
 
 
+def changefile(input_file):
+    # print(type(smth), smth)
+    if input_file.name:
+        new_path = os.path.abspath(
+            os.getcwd()).replace("\\", "/") + "/" + "weights" + "/" + input_file.name.split("/").pop()
+
+        shutil.move(input_file.name, new_path)
+    return input_file.name.split("/").pop()
+
+
 # Change your Gradio Theme here. 👇 👇 👇 👇 Example: " theme='HaleyCH/HaleyCH_Theme' "
 with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
     gr.HTML("<h1> The Mangio-RVC-Fork 💻 </h1>")
@@ -2006,9 +2054,12 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
             # Other RVC stuff
             with gr.Row():
                 # sid0 = gr.Dropdown(label=i18n("推理音色"), choices=sorted(names), value=check_for_name())
-                sid0 = gr.Dropdown(label=i18n("推理音色"), choices=sorted(names), value="")
+                sid0 = gr.Dropdown(label=i18n("推理音色"),
+                                   choices=sorted(names), value="")
+                sid0_file = gr.File(label=i18n("推理音色"))
                 # input_audio_path2
-
+                sid0_file.upload(fn=changefile, inputs=[
+                                 sid0_file], outputs=[sid0])
                 refresh_button = gr.Button(
                     i18n("Refresh voice list, index path and audio files"),
                     variant="primary",
@@ -2027,7 +2078,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
 
             with gr.Group():
                 gr.Markdown(
-                    value=i18n("男转女推荐+12key, 女转男推荐-12key, 如果音域爆炸导致音色失真也可以自己调整到合适音域. ")
+                    value=i18n(
+                        "男转女推荐+12key, 女转男推荐-12key, 如果音域爆炸导致音色失真也可以自己调整到合适音域. ")
                 )
                 with gr.Row():
                     with gr.Column():
@@ -2038,10 +2090,15 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             label=i18n(
                                 "Add audio's name to the path to the audio file to be processed (default is the correct format example) Remove the path to use an audio from the dropdown list:"
                             ),
-                            value=os.path.abspath(os.getcwd()).replace("\\", "/")
+                            value=os.path.abspath(
+                                os.getcwd()).replace("\\", "/")
                             + "/audios/"
                             + "audio.wav",
                         )
+                        input_file0 = gr.File(label=i18n(
+                            "Add audio's name to the path to the audio file to be processed (default is the correct format example) Remove the path to use an audio from the dropdown list:"))
+                        
+                        input_file0.change(fn=changefile, inputs=[input_file0], outputs=[input_audio0])
                         input_audio1 = gr.Dropdown(
                             label=i18n(
                                 "Auto detect audio path and select from the dropdown:"
@@ -2087,7 +2144,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         filter_radius0 = gr.Slider(
                             minimum=0,
                             maximum=7,
-                            label=i18n(">=3则使用对harvest音高识别的结果使用中值滤波，数值为滤波半径，使用可以削弱哑音"),
+                            label=i18n(
+                                ">=3则使用对harvest音高识别的结果使用中值滤波，数值为滤波半径，使用可以削弱哑音"),
                             value=3,
                             step=1,
                             interactive=True,
@@ -2231,18 +2289,21 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             inputs=[formant_preset, qfrency, tmbre],
                             outputs=[formant_preset, qfrency, tmbre],
                         )
-                        ##formant_refresh_button.click(fn=preset_apply, inputs=[formant_preset, qfrency, tmbre], outputs=[formant_preset, qfrency, tmbre])
-                        ##formant_refresh_button.click(fn=update_fshift_presets, inputs=[formant_preset, qfrency, tmbre], outputs=[formant_preset, qfrency, tmbre])
-                    f0_file = gr.File(label=i18n("F0曲线文件, 可选, 一行一个音高, 代替默认F0及升降调"))
+                        # formant_refresh_button.click(fn=preset_apply, inputs=[formant_preset, qfrency, tmbre], outputs=[formant_preset, qfrency, tmbre])
+                        # formant_refresh_button.click(fn=update_fshift_presets, inputs=[formant_preset, qfrency, tmbre], outputs=[formant_preset, qfrency, tmbre])
+                    f0_file = gr.File(label=i18n(
+                        "F0曲线文件, 可选, 一行一个音高, 代替默认F0及升降调"))
                     but0 = gr.Button(i18n("转换"), variant="primary")
                     with gr.Row():
                         vc_output1 = gr.Textbox(label=i18n("输出信息"))
-                        vc_output2 = gr.Audio(label=i18n("输出音频(右下角三个点,点了可以下载)"))
+                        vc_output2 = gr.Audio(
+                            label=i18n("输出音频(右下角三个点,点了可以下载)"))
                     but0.click(
                         vc_single,
                         [
                             spk_item,
                             input_audio0,
+                            # input_file0,
                             input_audio1,
                             vc_transform0,
                             f0_file,
@@ -2261,14 +2322,16 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     )
             with gr.Group():
                 gr.Markdown(
-                    value=i18n("批量转换, 输入待转换音频文件夹, 或上传多个音频文件, 在指定文件夹(默认opt)下输出转换的音频. ")
+                    value=i18n(
+                        "批量转换, 输入待转换音频文件夹, 或上传多个音频文件, 在指定文件夹(默认opt)下输出转换的音频. ")
                 )
                 with gr.Row():
                     with gr.Column():
                         vc_transform1 = gr.Number(
                             label=i18n("变调(整数, 半音数量, 升八度12降八度-12)"), value=0
                         )
-                        opt_input = gr.Textbox(label=i18n("指定输出文件夹"), value="opt")
+                        opt_input = gr.Textbox(
+                            label=i18n("指定输出文件夹"), value="opt")
                         f0method1 = gr.Radio(
                             label=i18n(
                                 "选择音高提取算法,输入歌声可用pm提速,harvest低音好但巨慢无比,crepe效果好但吃GPU"
@@ -2281,7 +2344,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         filter_radius1 = gr.Slider(
                             minimum=0,
                             maximum=7,
-                            label=i18n(">=3则使用对harvest音高识别的结果使用中值滤波，数值为滤波半径，使用可以削弱哑音"),
+                            label=i18n(
+                                ">=3则使用对harvest音高识别的结果使用中值滤波，数值为滤波半径，使用可以削弱哑音"),
                             value=3,
                             step=1,
                             interactive=True,
@@ -2349,7 +2413,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     with gr.Column():
                         dir_input = gr.Textbox(
                             label=i18n("输入待处理音频文件夹路径(去文件管理器地址栏拷就行了)"),
-                            value=os.path.abspath(os.getcwd()).replace("\\", "/")
+                            value=os.path.abspath(
+                                os.getcwd()).replace("\\", "/")
                             + "/audios/",
                         )
                         inputs = gr.File(
@@ -2413,13 +2478,15 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     with gr.Column():
                         dir_wav_input = gr.Textbox(
                             label=i18n("输入待处理音频文件夹路径"),
-                            value=((os.getcwd()).replace("\\", "/") + "/audios/"),
+                            value=((os.getcwd()).replace(
+                                "\\", "/") + "/audios/"),
                         )
                         wav_inputs = gr.File(
                             file_count="multiple", label=i18n("也可批量输入音频文件, 二选一, 优先读文件夹")
-                        )  #####
+                        )
                     with gr.Column():
-                        model_choose = gr.Dropdown(label=i18n("模型"), choices=uvr5_names)
+                        model_choose = gr.Dropdown(
+                            label=i18n("模型"), choices=uvr5_names)
                         agg = gr.Slider(
                             minimum=0,
                             maximum=20,
@@ -2512,7 +2579,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     but1 = gr.Button(i18n("处理数据"), variant="primary")
                     info1 = gr.Textbox(label=i18n("输出信息"), value="")
                     but1.click(
-                        preprocess_dataset, [trainset_dir4, exp_dir1, sr2, np7], [info1]
+                        preprocess_dataset, [
+                            trainset_dir4, exp_dir1, sr2, np7], [info1]
                     )
             with gr.Group():
                 step2b = gr.Markdown(
@@ -2525,7 +2593,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             value=gpus,
                             interactive=True,
                         )
-                        gpu_info9 = gr.Textbox(label=i18n("显卡信息"), value=gpu_info)
+                        gpu_info9 = gr.Textbox(
+                            label=i18n("显卡信息"), value=gpu_info)
                     with gr.Column():
                         f0method8 = gr.Radio(
                             label=i18n(
@@ -2641,7 +2710,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         [sr2, if_f0_3, version19],
                         [pretrained_G14, pretrained_D15, sr2],
                     )
-                    ### if f0_3 put here
+                    # if f0_3 put here
                     if_f0_3.change(
                         fn=change_f0,
                         inputs=[
@@ -2682,7 +2751,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         variant="primary",
                         visible=False,
                     )
-                    but3 = gr.Button(i18n("训练模型"), variant="primary", visible=True)
+                    but3 = gr.Button(
+                        i18n("训练模型"), variant="primary", visible=True)
                     but3.click(
                         fn=stoptraining,
                         inputs=[gr.Number(value=0, visible=False)],
@@ -2696,7 +2766,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
 
                     but4 = gr.Button(i18n("训练特征索引"), variant="primary")
                     # but5 = gr.Button(i18n("一键训练"), variant="primary")
-                    info3 = gr.Textbox(label=i18n("输出信息"), value="", max_lines=10)
+                    info3 = gr.Textbox(label=i18n("输出信息"),
+                                       value="", max_lines=10)
 
                     if_save_every_weights18.change(
                         fn=stepdisplay,
@@ -2809,7 +2880,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     )
                 with gr.Row():
                     but6 = gr.Button(i18n("融合"), variant="primary")
-                    info4 = gr.Textbox(label=i18n("输出信息"), value="", max_lines=8)
+                    info4 = gr.Textbox(label=i18n("输出信息"),
+                                       value="", max_lines=8)
                 but6.click(
                     merge,
                     [
@@ -2826,7 +2898,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                 )  # def merge(path1,path2,alpha1,sr,f0,info):
             with gr.Group():
                 gr.Markdown(value=i18n("修改模型信息(仅支持weights文件夹下提取的小模型文件)"))
-                with gr.Row():  ######
+                with gr.Row():
                     ckpt_path0 = gr.Textbox(
                         label=i18n("模型路径"),
                         placeholder="Path to your Model.",
@@ -2849,8 +2921,10 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     )
                 with gr.Row():
                     but7 = gr.Button(i18n("修改"), variant="primary")
-                    info5 = gr.Textbox(label=i18n("输出信息"), value="", max_lines=8)
-                but7.click(change_info, [ckpt_path0, info_, name_to_save1], info5)
+                    info5 = gr.Textbox(label=i18n("输出信息"),
+                                       value="", max_lines=8)
+                but7.click(change_info, [ckpt_path0,
+                           info_, name_to_save1], info5)
             with gr.Group():
                 gr.Markdown(value=i18n("查看模型信息(仅支持weights文件夹下提取的小模型文件)"))
                 with gr.Row():
@@ -2861,7 +2935,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         placeholder="Model path here.",
                     )
                     but8 = gr.Button(i18n("查看"), variant="primary")
-                    info6 = gr.Textbox(label=i18n("输出信息"), value="", max_lines=8)
+                    info6 = gr.Textbox(label=i18n("输出信息"),
+                                       value="", max_lines=8)
                 but8.click(show_info, [ckpt_path1], info6)
             with gr.Group():
                 gr.Markdown(
@@ -2908,7 +2983,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         placeholder="Model info here.",
                     )
                     but9 = gr.Button(i18n("提取"), variant="primary")
-                    info7 = gr.Textbox(label=i18n("输出信息"), value="", max_lines=8)
+                    info7 = gr.Textbox(label=i18n("输出信息"),
+                                       value="", max_lines=8)
                     ckpt_path2.change(
                         change_info_, [ckpt_path2], [sr__, if_f0__, version_1]
                     )

@@ -2,12 +2,19 @@
 
 FROM python:3.10-bullseye
 
-EXPOSE 7865
+RUN apt-get update; \ 
+    apt-get install -y --no-install-recommends \
+    libsndfile1
+
+EXPOSE 7866
 
 WORKDIR /app
 
-COPY . .
+COPY requirements.txt requirements.txt
 
 RUN pip3 install -r requirements.txt
 
-CMD ["python3", "infer-web.py"]
+COPY . .
+
+
+CMD ["python3", "infer-web.py", "--port", "7866"]

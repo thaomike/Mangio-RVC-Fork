@@ -53,7 +53,7 @@ def get_vc(sid):
             hubert_model = net_g = n_spk = vc = hubert_model = tgt_sr = None
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            ###楼下不这么折腾清理不干净
+            # 楼下不这么折腾清理不干净
             if_f0 = cpt.get("f0", 1)
             version = cpt.get("version", "v1")
             if version == "v1":
@@ -84,12 +84,14 @@ def get_vc(sid):
     version = cpt.get("version", "v1")
     if version == "v1":
         if if_f0 == 1:
-            net_g = SynthesizerTrnMs256NSFsid(*cpt["config"], is_half=config.is_half)
+            net_g = SynthesizerTrnMs256NSFsid(
+                *cpt["config"], is_half=config.is_half)
         else:
             net_g = SynthesizerTrnMs256NSFsid_nono(*cpt["config"])
     elif version == "v2":
         if if_f0 == 1:
-            net_g = SynthesizerTrnMs768NSFsid(*cpt["config"], is_half=config.is_half)
+            net_g = SynthesizerTrnMs768NSFsid(
+                *cpt["config"], is_half=config.is_half)
         else:
             net_g = SynthesizerTrnMs768NSFsid_nono(*cpt["config"])
     del net_g.enc_q
@@ -142,7 +144,8 @@ def vc_single(
         audio = input_audio_path[1] / 32768.0
         if len(audio.shape) == 2:
             audio = np.mean(audio, -1)
-        audio = librosa.resample(audio, orig_sr=input_audio_path[0], target_sr=16000)
+        audio = librosa.resample(
+            audio, orig_sr=input_audio_path[0], target_sr=16000)
         audio_max = np.abs(audio).max() / 0.95
         if audio_max > 1:
             audio /= audio_max
@@ -230,13 +233,18 @@ with app:
                 inputs=[sid],
                 outputs=[spk_item],
             )
-            gr.Markdown(
-                value=i18n("男转女推荐+12key, 女转男推荐-12key, 如果音域爆炸导致音色失真也可以自己调整到合适音域. ")
-            )
-            vc_input3 = gr.Audio(label="上传音频（长度小于90秒）")
-            vc_transform0 = gr.Number(label=i18n("变调(整数, 半音数量, 升八度12降八度-12)"), value=0)
+            # gr.Markdown(
+            #     value=i18n(
+            #         "男转女推荐+12key, 女转男推荐-12key, 如果音域爆炸导致音色失真也可以自己调整到合适音域. ")
+            # )
+            # vc_input3 = gr.Audio(label="上传音频（长度小于90秒）")
+            f88_file = gr.File(label=i18n("I am hereeeeeeee"))
+
+            vc_transform0 = gr.Number(label=i18n(
+                "变调(整数, 半音数量, 升八度12降八度-12)"), value=0)
             f0method0 = gr.Radio(
-                label=i18n("选择音高提取算法,输入歌声可用pm提速,harvest低音好但巨慢无比,crepe效果好但吃GPU"),
+                label=i18n(
+                    "选择音高提取算法,输入歌声可用pm提速,harvest低音好但巨慢无比,crepe效果好但吃GPU"),
                 choices=["pm", "harvest", "crepe"],
                 value="pm",
                 interactive=True,
@@ -286,7 +294,8 @@ with app:
             protect0 = gr.Slider(
                 minimum=0,
                 maximum=0.5,
-                label=i18n("保护清辅音和呼吸声，防止电音撕裂等artifact，拉满0.5不开启，调低加大保护力度但可能降低索引效果"),
+                label=i18n(
+                    "保护清辅音和呼吸声，防止电音撕裂等artifact，拉满0.5不开启，调低加大保护力度但可能降低索引效果"),
                 value=0.33,
                 step=0.01,
                 interactive=True,
@@ -299,7 +308,8 @@ with app:
                 vc_single,
                 [
                     spk_item,
-                    vc_input3,
+                    f88_file,
+                    # vc_input3,
                     vc_transform0,
                     f0_file,
                     f0method0,

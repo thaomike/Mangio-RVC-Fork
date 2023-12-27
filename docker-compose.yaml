@@ -1,0 +1,14 @@
+# volume alembic env.py file
+
+version: "3.7"
+
+services:
+  rvc:
+    container_name: thaomike/rvc:1.0
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "7866:7866"
+
