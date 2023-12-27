@@ -49,3 +49,4 @@ configs/40k.json
 configs/32k.json
 
 venv/
+audios/*.wav

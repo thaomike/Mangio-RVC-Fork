@@ -2022,15 +2022,31 @@ def whethercrepeornah(radio):
 
     return {"visible": mango, "__type__": "update"}
 
+# def change_file_audios(input_file):
+
 
 def changefile(input_file):
-    # print(type(smth), smth)
+    ext = input_file.name.split(".").pop()
+    folder_name = 'audios'
+    print(ext)
+    if ext == 'pth':
+        folder_name = 'weights'
     if input_file.name:
         new_path = os.path.abspath(
-            os.getcwd()).replace("\\", "/") + "/" + "weights" + "/" + input_file.name.split("/").pop()
+            os.getcwd()).replace("\\", "/") + "/" + folder_name + "/" + input_file.name.split("/").pop()
 
         shutil.move(input_file.name, new_path)
     return input_file.name.split("/").pop()
+
+
+block_request = False
+
+# if os.pa
+
+
+def check_auth(username, password):
+    print(username, password)
+    return username == password
 
 
 # Change your Gradio Theme here. 👇 👇 👇 👇 Example: " theme='HaleyCH/HaleyCH_Theme' "
@@ -2059,12 +2075,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                 sid0_file = gr.File(label=i18n("推理音色"))
                 # input_audio_path2
                 sid0_file.upload(fn=changefile, inputs=[
-                                 sid0_file], outputs=[sid0])
+                    sid0_file, ], outputs=[sid0])
                 refresh_button = gr.Button(
                     i18n("Refresh voice list, index path and audio files"),
                     variant="primary",
                 )
-                clean_button = gr.Button(i18n("卸载音色省显存"), variant="primary")
+                clean_button = gr.Button(
+                    i18n("卸载音色省显存"), variant="primary")
                 spk_item = gr.Slider(
                     minimum=0,
                     maximum=2333,
@@ -2097,8 +2114,9 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         )
                         input_file0 = gr.File(label=i18n(
                             "Add audio's name to the path to the audio file to be processed (default is the correct format example) Remove the path to use an audio from the dropdown list:"))
-                        
-                        input_file0.change(fn=changefile, inputs=[input_file0], outputs=[input_audio0])
+
+                        input_file0.change(fn=changefile, inputs=[
+                            input_file0, ], outputs=[input_audio0])
                         input_audio1 = gr.Dropdown(
                             label=i18n(
                                 "Auto detect audio path and select from the dropdown:"
@@ -2566,7 +2584,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                 with gr.Row():
                     trainset_dir4 = gr.Textbox(
                         label=i18n("输入训练文件夹路径"),
-                        value=os.path.abspath(os.getcwd()) + "\\datasets\\",
+                        value=os.path.abspath(
+                            os.getcwd()) + "\\datasets\\",
                     )
                     spk_id5 = gr.Slider(
                         minimum=0,
@@ -2584,12 +2603,14 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     )
             with gr.Group():
                 step2b = gr.Markdown(
-                    value=i18n("step2b: 使用CPU提取音高(如果模型带音高), 使用GPU提取特征(选择卡号)")
+                    value=i18n(
+                        "step2b: 使用CPU提取音高(如果模型带音高), 使用GPU提取特征(选择卡号)")
                 )
                 with gr.Row():
                     with gr.Column():
                         gpus6 = gr.Textbox(
-                            label=i18n("以-分隔输入使用的卡号, 例如   0-1-2   使用卡0和卡1和卡2"),
+                            label=i18n(
+                                "以-分隔输入使用的卡号, 例如   0-1-2   使用卡0和卡1和卡2"),
                             value=gpus,
                             interactive=True,
                         )
@@ -2924,7 +2945,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     info5 = gr.Textbox(label=i18n("输出信息"),
                                        value="", max_lines=8)
                 but7.click(change_info, [ckpt_path0,
-                           info_, name_to_save1], info5)
+                                         info_, name_to_save1], info5)
             with gr.Group():
                 gr.Markdown(value=i18n("查看模型信息(仅支持weights文件夹下提取的小模型文件)"))
                 with gr.Row():
@@ -2948,7 +2969,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     ckpt_path2 = gr.Textbox(
                         lines=3,
                         label=i18n("模型路径"),
-                        value=os.path.abspath(os.getcwd()).replace("\\", "/")
+                        value=os.path.abspath(
+                            os.getcwd()).replace("\\", "/")
                         + "/logs/[YOUR_MODEL]/G_23333.pth",
                         interactive=True,
                     )
@@ -2986,7 +3008,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     info7 = gr.Textbox(label=i18n("输出信息"),
                                        value="", max_lines=8)
                     ckpt_path2.change(
-                        change_info_, [ckpt_path2], [sr__, if_f0__, version_1]
+                        change_info_, [ckpt_path2], [
+                            sr__, if_f0__, version_1]
                     )
                 but9.click(
                     extract_small_model,
@@ -3165,6 +3188,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
             inbrowser=not config.noautoopen,
             server_port=config.listen_port,
             quiet=False,
+            auth=check_auth
         )
 
 # endregion
