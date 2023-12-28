@@ -1,45 +1,41 @@
-import pdb
-import traceback
-import scipy.io.wavfile as wavfile
-import re as regex
-import csv
-from sklearn.cluster import MiniBatchKMeans
-from vc_infer_pipeline import VC
-from train.process_ckpt import change_info, extract_small_model, merge, show_info
-from my_utils import load_audio, CSVutil
-from MDXNet import MDXNetDereverb
-from infer_uvr5 import _audio_pre_, _audio_pre_new
-from lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
-from lib.infer_pack.models import (
-    SynthesizerTrnMs256NSFsid,
-    SynthesizerTrnMs256NSFsid_nono,
-    SynthesizerTrnMs768NSFsid,
-    SynthesizerTrnMs768NSFsid_nono,
-)
-from i18n import I18nAuto
-from fairseq import checkpoint_utils
-from config import Config
-import soundfile as sf
-import gradio as gr
-import ffmpeg
-import faiss
-from time import sleep
-from subprocess import Popen
-from random import shuffle
-import threading
-import logging
-import re
-import torch
-import numpy as np
-import warnings
-import os
-import shutil
-import sys
 import json  # Mangio fork using json for preset saving
+import logging
 import math
-import io
+import os
+import re as regex
+import shutil
 import signal
+import sys
+import threading
+import traceback
+import warnings
+from random import shuffle
+from subprocess import Popen
+from time import sleep
 
+import faiss
+import ffmpeg
+import gradio as gr
+import numpy as np
+import scipy.io.wavfile as wavfile
+import soundfile as sf
+import torch
+from fairseq import checkpoint_utils
+from sklearn.cluster import MiniBatchKMeans
+
+from config import Config
+from i18n import I18nAuto
+from infer_uvr5 import _audio_pre_, _audio_pre_new
+from lib.infer_pack.models import (SynthesizerTrnMs256NSFsid,
+                                   SynthesizerTrnMs256NSFsid_nono,
+                                   SynthesizerTrnMs768NSFsid,
+                                   SynthesizerTrnMs768NSFsid_nono)
+from lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
+from MDXNet import MDXNetDereverb
+from my_utils import CSVutil, load_audio
+from train.process_ckpt import (change_info, extract_small_model, merge,
+                                show_info)
+from vc_infer_pipeline import VC
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
@@ -150,7 +146,7 @@ hubert_model = None
 def load_hubert():
     global hubert_model
     models, _, _ = checkpoint_utils.load_model_ensemble_and_task(
-        ["hubert_base.pt"],
+        ["/home/vfast/Downloads/hubert_base.pt"],
         suffix="",
     )
     hubert_model = models[0]
@@ -2028,7 +2024,6 @@ def whethercrepeornah(radio):
 def changefile(input_file):
     ext = input_file.name.split(".").pop()
     folder_name = 'audios'
-    print(ext)
     if ext == 'pth':
         folder_name = 'weights'
     if input_file.name:
@@ -2043,15 +2038,55 @@ block_request = False
 
 # if os.pa
 
+# structure:
+# {is_online: True, username: username_is_online}
+# {username: username, password: pass123}
+if not os.path.exists("session.auth"):
+    with open("session.auth", 'w') as f:
+        auth_check = {"is_online": False, "username": ""}
+        f.write(json.dumps(auth_check))
+
 
 def check_auth(username, password):
+    user_filename = 'user.auth'
+    session_filename = 'session.auth'
+    login_success = False
+    with open(session_filename, 'r') as f:
+        auth_check = f.readline()
+        auth_info = json.loads(auth_check)
+        if auth_info['is_online']:
+            return False
+    with open(user_filename, 'r') as f:
+        while True:
+            user = f.readline()
+            if not user:
+                break
+            user_dict = json.loads(user)
+            if user_dict['username'] == username and user_dict['password'] == password:
+                login_success = True
+                break
+    if login_success:
+        with open(session_filename, 'w') as f:
+            new_auth = {"is_online": True, "username": username}
+            f.write(json.dumps(new_auth))
+        return True
     print(username, password)
-    return username == password
+    # raise gr.Error("Cannot divide by zero!")
+    return False
+
+
+def handle_logout():
+    print('ju')
+    with open("session.auth", 'w') as f:
+        f.write(json.dumps({"is_online": False}))
 
 
 # Change your Gradio Theme here. 👇 👇 👇 👇 Example: " theme='HaleyCH/HaleyCH_Theme' "
 with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
+    logout_btn = gr.LogoutButton(value="LOGOUT")
     gr.HTML("<h1> The Mangio-RVC-Fork 💻 </h1>")
+    logout_btn.click(fn=handle_logout, show_progress=True, api_name="logout")
+
     gr.Markdown(
         value=i18n(
             "本软件以MIT协议开源, 作者不对软件具备任何控制力, 使用软件者、传播软件导出的声音者自负全责. <br>如不认可该条款, 则不能使用或引用软件包内任何代码和文件. 详见根目录<b>使用需遵守的协议-LICENSE.txt</b>."
@@ -2075,7 +2110,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                 sid0_file = gr.File(label=i18n("推理音色"))
                 # input_audio_path2
                 sid0_file.upload(fn=changefile, inputs=[
-                    sid0_file, ], outputs=[sid0])
+                    sid0_file, ], outputs=[sid0], api_name="change_model")
                 refresh_button = gr.Button(
                     i18n("Refresh voice list, index path and audio files"),
                     variant="primary",
@@ -3188,7 +3223,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
             inbrowser=not config.noautoopen,
             server_port=config.listen_port,
             quiet=False,
-            auth=check_auth
+            auth=check_auth,
         )
 
 # endregion
