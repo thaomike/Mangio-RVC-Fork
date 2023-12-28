@@ -2126,7 +2126,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     visible=False,
                     interactive=True,
                 )
-                clean_button.click(fn=clean, inputs=[], outputs=[sid0])
+                clean_button.click(fn=clean, inputs=[], outputs=[sid0], api_name="clean")
 
             with gr.Group():
                 gr.Markdown(
@@ -2151,7 +2151,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             "Add audio's name to the path to the audio file to be processed (default is the correct format example) Remove the path to use an audio from the dropdown list:"))
 
                         input_file0.change(fn=changefile, inputs=[
-                            input_file0, ], outputs=[input_audio0])
+                            input_file0, ], outputs=[input_audio0], api_name='change_audio')
                         input_audio1 = gr.Dropdown(
                             label=i18n(
                                 "Auto detect audio path and select from the dropdown:"
