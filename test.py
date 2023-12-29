@@ -1,56 +1,253 @@
 from fastapi import FastAPI
 import json  # Mangio fork using json for preset saving
-import logging
-import math
 import os
-import re as regex
-import shutil
-import signal
-import sys
-import threading
 import traceback
-import warnings
-from random import shuffle
-from subprocess import Popen
-from time import sleep
-
-import faiss
-import ffmpeg
 import gradio as gr
 import numpy as np
-import scipy.io.wavfile as wavfile
-import soundfile as sf
-import torch
-from fairseq import checkpoint_utils
-from sklearn.cluster import MiniBatchKMeans
 
-from config import Config
 from i18n import I18nAuto
-from infer_uvr5 import _audio_pre_, _audio_pre_new
-from lib.infer_pack.models import (SynthesizerTrnMs256NSFsid,
-                                   SynthesizerTrnMs256NSFsid_nono,
-                                   SynthesizerTrnMs768NSFsid,
-                                   SynthesizerTrnMs768NSFsid_nono)
-from lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
-from MDXNet import MDXNetDereverb
-from my_utils import CSVutil, load_audio
 from train.process_ckpt import (change_info, extract_small_model, merge,
                                 show_info)
-from vc_infer_pipeline import VC
 
 from gradio_client import Client
+from my_utils import CSVutil, load_audio
+
 
 client = Client("http://localhost:7865/")
+
+global DoFormant, Quefrency, Timbre
+
+try:
+    DoFormant, Quefrency, Timbre = CSVutil(
+        "csvdb/formanting.csv", "r", "formanting")
+    DoFormant = (
+        lambda DoFormant: True
+        if DoFormant.lower() == "true"
+        else (False if DoFormant.lower() == "false" else DoFormant)
+    )(DoFormant)
+except (ValueError, TypeError, IndexError):
+    DoFormant, Quefrency, Timbre = False, 1.0, 1.0
+    CSVutil("csvdb/formanting.csv", "w+",
+            "formanting", DoFormant, Quefrency, Timbre)
+
 i18n = I18nAuto()
 i18n.print()
 
+weight_root = "weights"
+weight_uvr5_root = "uvr5_weights"
+index_root = "./logs/"
+audio_root = "audios"
+names = []
+for name in os.listdir(weight_root):
+    if name.endswith(".pth"):
+        names.append(name)
+index_paths = []
+
+global indexes_list
+indexes_list = []
+
+audio_paths = []
+for root, dirs, files in os.walk(index_root, topdown=False):
+    for name in files:
+        if name.endswith(".index") and "trained" not in name:
+            index_paths.append("%s\\%s" % (root, name))
+
+for root, dirs, files in os.walk(audio_root, topdown=False):
+    for name in files:
+        audio_paths.append("%s/%s" % (root, name))
+
+uvr5_names = []
+for name in os.listdir(weight_uvr5_root):
+    if name.endswith(".pth") or "onnx" in name:
+        uvr5_names.append(name.replace(".pth", ""))
+
+
+def check_for_name():
+    if len(names) > 0:
+        return sorted(names)[0]
+    else:
+        return ""
+
+
+def get_index():
+    if check_for_name() != "":
+        chosen_model = sorted(names)[0].split(".")[0]
+        logs_path = "./logs/" + chosen_model
+        if os.path.exists(logs_path):
+            for file in os.listdir(logs_path):
+                if file.endswith(".index"):
+                    return os.path.join(logs_path, file).replace("\\", "/")
+            return ""
+        else:
+            return ""
+
+
+def get_indexes():
+    for dirpath, dirnames, filenames in os.walk("./logs/"):
+        for filename in filenames:
+            if filename.endswith(".index") and "trained" not in filename:
+                indexes_list.append(os.path.join(
+                    dirpath, filename).replace("\\", "/"))
+    if len(indexes_list) > 0:
+        return indexes_list
+    else:
+        return ""
+
+
+def get_fshift_presets():
+    fshift_presets_list = []
+    for dirpath, dirnames, filenames in os.walk("./formantshiftcfg/"):
+        for filename in filenames:
+            if filename.endswith(".txt"):
+                fshift_presets_list.append(
+                    os.path.join(dirpath, filename).replace("\\", "/")
+                )
+
+    if len(fshift_presets_list) > 0:
+        return fshift_presets_list
+    else:
+        return ""
+
+
+def logout():
+    return client.predict(api_name="/logout_logout_btn")
+
+
+def changefile_sid0_file(sid0_file):
+    return client.predict(sid0_file, "/changefile_sid0_file")
+
+
+def clean():
+    return client.predict(api_name="/clean")
+
+
+def change_audio(input_audio0):
+    return client.predict(input_audio0, "/change_audio")
+
+
+def whethercrepeornah_f0method0(f0method0):
+    return client.predict(
+        f0method0, "/whethercrepeornah_f0method0")
+
+
+def change_choices():
+    return client.predict(api_name="/change_choices")
+
+
+def preset_apply_formant_preset(formant_preset, qfrency, tmbre):
+    return client.predict(
+        formant_preset, qfrency, tmbre, "/preset_apply_formant_preset")
+
+
+def formant_enabled(formanting, qfrency, tmbre, frmntbut, formant_preset,
+                    formant_refresh_button,):
+    return client.predict(formanting, qfrency, tmbre, frmntbut, formant_preset, formant_refresh_button, api_name="/formant_enabled")
+
+
+def formant_apply(qfrency, tmbre):
+    return client.predict(qfrency, tmbre, api_name="/formant_apply")
+
+
+def update_fshift_presets(formant_preset, qfrency, tmbre):
+    return client.predict(formant_preset, qfrency, tmbre)
+
+
+def vc_single_but0(spk_item, input_audio0, input_audio1, vc_transform0, f0_file, f0method0,
+                   file_index1, file_index2, index_rate1, filter_radius0, resample_sr0, rms_mix_rate0,
+                   protect0, crepe_hop_length,):
+    return client.predict(spk_item, input_audio0, input_audio1, vc_transform0, f0_file,
+                          f0method0, file_index1, file_index2, index_rate1, filter_radius0,
+                          resample_sr0, rms_mix_rate0, protect0, crepe_hop_length, "/vc_single_but0")
+
+
+def match_index_sid0(sid0):
+    return client.predict(sid0, "/match_index_sid0")
+
+
+def vc_multi(spk_item, dir_input, opt_input, inputs, vc_transform1, f0method1, file_index3, file_index4,
+             index_rate2, filter_radius1, resample_sr1, rms_mix_rate1, protect1, format1, crepe_hop_length,):
+    return client.predict(spk_item, dir_input, opt_input, inputs, vc_transform1, f0method1,
+                          file_index3, file_index4, index_rate2, filter_radius1, resample_sr1, rms_mix_rate1,
+                          protect1, format1, crepe_hop_length, "/vc_multi")
+
+
+def get_vc(sid0, protect0, protect1):
+    return client.predict(sid0, protect0, protect1, api_name="/get_vc")
+
+
+def uvr(model_choose, dir_wav_input, opt_vocal_root, wav_inputs, opt_ins_root, agg, format0,):
+    return client.predict(model_choose, dir_wav_input, opt_vocal_root, wav_inputs, opt_ins_root, agg, format0, "/uvr")
+
+
+def preprocess_dataset(trainset_dir4, exp_dir1, sr2, np7):
+    return client.predict(trainset_dir4, exp_dir1, sr2, np7, "/preprocess_dataset")
+
+
+def whethercrepeornah_f0method8(f0method8):
+    return client.predict(f0method8, "/whethercrepeornah_f0method8")
+
+
+def extract_f0_feature(gpus6, np7, f0method8, if_f0_3, exp_dir1,
+                       version19, extraction_crepe_hop_length,):
+    return client.predict(gpus6, np7, f0method8, if_f0_3, exp_dir1,
+                          version19, extraction_crepe_hop_length, "/extract_f0_feature")
+
+
+def change_sr2(sr2, if_f0_3, version19):
+    return client.predict(sr2, if_f0_3, version19, "/change_sr2")
+
+
+def change_version19(sr2, if_f0_3, version19):
+    return client.predict(sr2, if_f0_3, version19, "/change_version19")
+
+
+def change_f0(if_f0_3, sr2, version19, step2b, gpus6, gpu_info9,
+              extraction_crepe_hop_length, but2, info2,):
+    return client.predict(if_f0_3, sr2, version19, step2b, gpus6, gpu_info9,
+                          extraction_crepe_hop_length, but2, info2, "/change_f0")
+
+
+def whethercrepeornah_if_f0_3(f0method8):
+    return client.predict(f0method8, "/whethercrepeornah_if_f0_3")
+
+
+def stoptraining_but3():
+    return client.predict(gr.Number(value=0, visible=False), "/stoptraining_but3")
+
+
+def stoptraining_butstop():
+    return client.predict(gr.Number(value=1, visible=False), "/stoptraining_butstop")
+
+
+def stepdisplay(if_save_every_weights18):
+    return client.predict(if_save_every_weights18, "/stepdisplay")
+
+
+def click_train_but3(exp_dir1, sr2, if_f0_3, spk_id5, save_epoch10, total_epoch11,
+                     batch_size12, if_save_latest13, pretrained_G14, pretrained_D15, gpus16,
+                     if_cache_gpu17, if_save_every_weights18, version19,):
+    return client.predict(exp_dir1, sr2, if_f0_3, spk_id5, save_epoch10, total_epoch11,
+                          batch_size12, if_save_latest13, pretrained_G14, pretrained_D15, gpus16,
+                          if_cache_gpu17, if_save_every_weights18, version19, "/click_train_but3")
+
+
+def train_index_but4(exp_dir1, version19):
+    return client.predict(exp_dir1, version19, "/train_index_but4")
+
+
+def change_info_ckpt_path2(ckpt_path2):
+    return client.predict(ckpt_path2, "/change_info_ckpt_path2")
+
+
+def export_onnx_butOnnx(ckpt_dir, onnx_dir):
+    return client.predict(ckpt_dir, onnx_dir, "/export_onnx_butOnnx")
+
+
 # Change your Gradio Theme here. 👇 👇 👇 👇 Example: " theme='HaleyCH/HaleyCH_Theme' "
 with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
-    logout_btn = gr.LogoutButton(value="LOGOUT")
+    logout_btn = gr.Button(value="LOGOUT")
     gr.HTML("<h1> The Mangio-RVC-Fork 💻 </h1>")
-    logout_btn.click(fn=client.predict(
-        fn_index=0
-    ))
+    logout_btn.click(fn=logout, inputs=[], outputs=[])
 
     gr.Markdown(
         value=i18n(
@@ -59,26 +256,16 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
     )
     with gr.Tabs():
         with gr.TabItem(i18n("模型推理")):
-            # Inference Preset Row
-            # with gr.Row():
-            #     mangio_preset = gr.Dropdown(label="Inference Preset", choices=sorted(get_presets()))
-            #     mangio_preset_name_save = gr.Textbox(
-            #         label="Your preset name"
-            #     )
-            #     mangio_preset_save_btn = gr.Button('Save Preset', variant="primary")
 
             # Other RVC stuff
             with gr.Row():
-                # sid0 = gr.Dropdown(label=i18n("推理音色"), choices=sorted(names), value=check_for_name())
                 sid0 = gr.Dropdown(label=i18n("推理音色"),
-                                   choices=sorted(names), value="")
+                                   choices=sorted([]), value="")
+                #    choices=sorted(names), value="")
                 sid0_file = gr.File(label=i18n("推理音色"))
                 # input_audio_path2
-                sid0_file.upload(fn=client.predict(
-                    sid0_file,
-                    fn_index=1
-                ), inputs=[
-                    sid0_file, ], outputs=[sid0])
+                sid0_file.upload(fn=changefile_sid0_file, inputs=[
+                                 sid0_file], outputs=[sid0])
                 refresh_button = gr.Button(
                     i18n("Refresh voice list, index path and audio files"),
                     variant="primary",
@@ -118,13 +305,14 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         input_file0 = gr.File(label=i18n(
                             "File Add audio's name to the path to the audio file to be processed (default is the correct format example) Remove the path to use an audio from the dropdown list:"))
 
-                        input_file0.change(fn=changefile, inputs=[
-                            input_file0, ], outputs=[input_audio0])
+                        input_file0.change(fn=change_audio, inputs=[
+                                           input_audio0], outputs=[input_audio0])
                         input_audio1 = gr.Dropdown(
                             label=i18n(
                                 "Auto detect audio path and select from the dropdown:"
                             ),
-                            choices=sorted(audio_paths),
+                            choices=sorted([]),
+                            # choices=sorted(audio_paths),
                             value="",
                             interactive=True,
                         )
@@ -157,8 +345,9 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             interactive=True,
                             visible=False,
                         )
+
                         f0method0.change(
-                            fn=whethercrepeornah,
+                            fn=whethercrepeornah_f0method0,
                             inputs=[f0method0],
                             outputs=[crepe_hop_length],
                         )
@@ -185,18 +374,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             interactive=True,
                             allow_custom_value=True,
                         )
-                        # sid0.select(fn=match_index, inputs=sid0, outputs=file_index2)
 
                         refresh_button.click(
                             fn=change_choices,
                             inputs=[],
                             outputs=[sid0, file_index2, input_audio1],
                         )
-                        # file_big_npy1 = gr.Textbox(
-                        #     label=i18n("特征文件路径"),
-                        #     value="E:\\codes\py39\\vits_vc_gpu_train\\logs\\mi-test-1key\\total_fea.npy",
-                        #     interactive=True,
-                        # )
+
                         index_rate1 = gr.Slider(
                             minimum=0,
                             maximum=1,
@@ -274,13 +458,14 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         )
 
                         formant_preset.change(
-                            fn=preset_apply,
+                            fn=preset_apply_formant_preset,
                             inputs=[formant_preset, qfrency, tmbre],
                             outputs=[qfrency, tmbre],
                         )
                         frmntbut = gr.Button(
                             "Apply", variant="primary", visible=bool(DoFormant)
                         )
+
                         formanting.change(
                             fn=formant_enabled,
                             inputs=[
@@ -319,19 +504,18 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         vc_output1 = gr.Textbox(label=i18n("输出信息"))
                         vc_output2 = gr.Audio(
                             label=i18n("输出音频(右下角三个点,点了可以下载)"))
+
                     but0.click(
-                        vc_single,
+                        vc_single_but0,
                         [
                             spk_item,
                             input_audio0,
-                            # input_file0,
                             input_audio1,
                             vc_transform0,
                             f0_file,
                             f0method0,
                             file_index1,
                             file_index2,
-                            # file_big_npy1,
                             index_rate1,
                             filter_radius0,
                             resample_sr0,
@@ -384,7 +568,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             interactive=True,
                         )
                         sid0.select(
-                            fn=match_index,
+                            fn=match_index_sid0,
                             inputs=[sid0],
                             outputs=[file_index2, file_index4],
                         )
@@ -393,11 +577,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             inputs=[],
                             outputs=file_index4,
                         )
-                        # file_big_npy2 = gr.Textbox(
-                        #     label=i18n("特征文件路径"),
-                        #     value="E:\\codes\\py39\\vits_vc_gpu_train\\logs\\mi-test-1key\\total_fea.npy",
-                        #     interactive=True,
-                        # )
                         index_rate2 = gr.Slider(
                             minimum=0,
                             maximum=1,
@@ -461,7 +640,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             f0method1,
                             file_index3,
                             file_index4,
-                            # file_big_npy2,
                             index_rate2,
                             filter_radius1,
                             resample_sr1,
@@ -647,7 +825,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         )
 
                         f0method8.change(
-                            fn=whethercrepeornah,
+                            fn=whethercrepeornah_f0method8,
                             inputs=[f0method8],
                             outputs=[extraction_crepe_hop_length],
                         )
@@ -761,7 +939,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         ],
                     )
                     if_f0_3.change(
-                        fn=whethercrepeornah,
+                        fn=whethercrepeornah_if_f0_3,
                         inputs=[f0method8],
                         outputs=[extraction_crepe_hop_length],
                     )
@@ -777,14 +955,15 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     )
                     but3 = gr.Button(
                         i18n("训练模型"), variant="primary", visible=True)
+
                     but3.click(
-                        fn=stoptraining,
-                        inputs=[gr.Number(value=0, visible=False)],
+                        fn=stoptraining_but3,
+                        inputs=[],
                         outputs=[but3, butstop],
                     )
                     butstop.click(
-                        fn=stoptraining,
-                        inputs=[gr.Number(value=1, visible=False)],
+                        fn=stoptraining_butstop,
+                        inputs=[],
                         outputs=[butstop, but3],
                     )
 
@@ -800,7 +979,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     )
 
                     but3.click(
-                        click_train,
+                        click_train_but3,
                         [
                             exp_dir1,
                             sr2,
@@ -820,32 +999,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         [info3, butstop, but3],
                     )
 
-                    but4.click(train_index, [exp_dir1, version19], info3)
-
-                    # but5.click(
-                    #    train1key,
-                    #    [
-                    #        exp_dir1,
-                    #        sr2,
-                    #        if_f0_3,
-                    #        trainset_dir4,
-                    #        spk_id5,
-                    #        np7,
-                    #        f0method8,
-                    #        save_epoch10,
-                    #        total_epoch11,
-                    #        batch_size12,
-                    #        if_save_latest13,
-                    #        pretrained_G14,
-                    #        pretrained_D15,
-                    #        gpus16,
-                    #        if_cache_gpu17,
-                    #        if_save_every_weights18,
-                    #        version19,
-                    #        extraction_crepe_hop_length
-                    #    ],
-                    #    info3,
-                    # )
+                    but4.click(train_index_but4, [exp_dir1, version19], info3)
 
         with gr.TabItem(i18n("ckpt处理")):
             with gr.Group():
@@ -1010,8 +1164,9 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     but9 = gr.Button(i18n("提取"), variant="primary")
                     info7 = gr.Textbox(label=i18n("输出信息"),
                                        value="", max_lines=8)
+
                     ckpt_path2.change(
-                        change_info_, [ckpt_path2], [
+                        change_info_ckpt_path2, [ckpt_path2], [
                             sr__, if_f0__, version_1]
                     )
                 but9.click(
@@ -1039,7 +1194,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                 infoOnnx = gr.Label(label="info")
             with gr.Row():
                 butOnnx = gr.Button(i18n("导出Onnx模型"), variant="primary")
-            butOnnx.click(export_onnx, [ckpt_dir, onnx_dir], infoOnnx)
+
+            butOnnx.click(export_onnx_butOnnx, [ckpt_dir, onnx_dir], infoOnnx)
 
         tab_faq = i18n("常见问题解答")
         with gr.TabItem(tab_faq):
@@ -1054,78 +1210,82 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
             except:
                 gr.Markdown(traceback.format_exc())
 
+
+#    ---------------^^^ from this ^^^^^-------------------
+
     # region Mangio Preset Handler Region
-    def save_preset(
-        preset_name,
-        sid0,
-        vc_transform,
-        input_audio0,
-        input_audio1,
-        f0method,
-        crepe_hop_length,
-        filter_radius,
-        file_index1,
-        file_index2,
-        index_rate,
-        resample_sr,
-        rms_mix_rate,
-        protect,
-        f0_file,
-    ):
-        data = None
-        with open("../inference-presets.json", "r") as file:
-            data = json.load(file)
-        preset_json = {
-            "name": preset_name,
-            "model": sid0,
-            "transpose": vc_transform,
-            "audio_file": input_audio0,
-            "auto_audio_file": input_audio1,
-            "f0_method": f0method,
-            "crepe_hop_length": crepe_hop_length,
-            "median_filtering": filter_radius,
-            "feature_path": file_index1,
-            "auto_feature_path": file_index2,
-            "search_feature_ratio": index_rate,
-            "resample": resample_sr,
-            "volume_envelope": rms_mix_rate,
-            "protect_voiceless": protect,
-            "f0_file_path": f0_file,
-        }
-        data["presets"].append(preset_json)
-        with open("../inference-presets.json", "w") as file:
-            json.dump(data, file)
-            file.flush()
-        print("Saved Preset %s into inference-presets.json!" % preset_name)
 
-    def on_preset_changed(preset_name):
-        print("Changed Preset to %s!" % preset_name)
-        data = None
-        with open("../inference-presets.json", "r") as file:
-            data = json.load(file)
+    # def save_preset(
+    #     preset_name,
+    #     sid0,
+    #     vc_transform,
+    #     input_audio0,
+    #     input_audio1,
+    #     f0method,
+    #     crepe_hop_length,
+    #     filter_radius,
+    #     file_index1,
+    #     file_index2,
+    #     index_rate,
+    #     resample_sr,
+    #     rms_mix_rate,
+    #     protect,
+    #     f0_file,
+    # ):
+    #     data = None
+    #     with open("../inference-presets.json", "r") as file:
+    #         data = json.load(file)
+    #     preset_json = {
+    #         "name": preset_name,
+    #         "model": sid0,
+    #         "transpose": vc_transform,
+    #         "audio_file": input_audio0,
+    #         "auto_audio_file": input_audio1,
+    #         "f0_method": f0method,
+    #         "crepe_hop_length": crepe_hop_length,
+    #         "median_filtering": filter_radius,
+    #         "feature_path": file_index1,
+    #         "auto_feature_path": file_index2,
+    #         "search_feature_ratio": index_rate,
+    #         "resample": resample_sr,
+    #         "volume_envelope": rms_mix_rate,
+    #         "protect_voiceless": protect,
+    #         "f0_file_path": f0_file,
+    #     }
+    #     data["presets"].append(preset_json)
+    #     with open("../inference-presets.json", "w") as file:
+    #         json.dump(data, file)
+    #         file.flush()
+    #     print("Saved Preset %s into inference-presets.json!" % preset_name)
 
-        print("Searching for " + preset_name)
-        returning_preset = None
-        for preset in data["presets"]:
-            if preset["name"] == preset_name:
-                print("Found a preset")
-                returning_preset = preset
-        # return all new input values
-        return (
-            # returning_preset['model'],
-            # returning_preset['transpose'],
-            # returning_preset['audio_file'],
-            # returning_preset['f0_method'],
-            # returning_preset['crepe_hop_length'],
-            # returning_preset['median_filtering'],
-            # returning_preset['feature_path'],
-            # returning_preset['auto_feature_path'],
-            # returning_preset['search_feature_ratio'],
-            # returning_preset['resample'],
-            # returning_preset['volume_envelope'],
-            # returning_preset['protect_voiceless'],
-            # returning_preset['f0_file_path']
-        )
+    # def on_preset_changed(preset_name):
+    #     print("Changed Preset to %s!" % preset_name)
+    #     data = None
+    #     with open("../inference-presets.json", "r") as file:
+    #         data = json.load(file)
+
+    #     print("Searching for " + preset_name)
+    #     returning_preset = None
+    #     for preset in data["presets"]:
+    #         if preset["name"] == preset_name:
+    #             print("Found a preset")
+    #             returning_preset = preset
+    #     # return all new input values
+    #     return (
+    #         # returning_preset['model'],
+    #         # returning_preset['transpose'],
+    #         # returning_preset['audio_file'],
+    #         # returning_preset['f0_method'],
+    #         # returning_preset['crepe_hop_length'],
+    #         # returning_preset['median_filtering'],
+    #         # returning_preset['feature_path'],
+    #         # returning_preset['auto_feature_path'],
+    #         # returning_preset['search_feature_ratio'],
+    #         # returning_preset['resample'],
+    #         # returning_preset['volume_envelope'],
+    #         # returning_preset['protect_voiceless'],
+    #         # returning_preset['f0_file_path']
+    #     )
 
     # Preset State Changes
 
@@ -1194,7 +1354,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
     #         auth=check_auth,
     #     )
 
-# endregion
 
 appFastAPI = FastAPI(
     title='Text to Speech',

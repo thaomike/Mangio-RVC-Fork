@@ -2085,7 +2085,7 @@ def handle_logout():
 with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
     logout_btn = gr.LogoutButton(value="LOGOUT")
     gr.HTML("<h1> The Mangio-RVC-Fork 💻 </h1>")
-    logout_btn.click(fn=handle_logout, show_progress=True, api_name="logout")
+    logout_btn.click(fn=handle_logout, show_progress=True, api_name="logout_logout_btn")
 
     gr.Markdown(
         value=i18n(
@@ -2110,7 +2110,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                 sid0_file = gr.File(label=i18n("推理音色"))
                 # input_audio_path2
                 sid0_file.upload(fn=changefile, inputs=[
-                    sid0_file, ], outputs=[sid0], api_name="change_model")
+                    sid0_file, ], outputs=[sid0], api_name="changefile_sid0_file")
                 refresh_button = gr.Button(
                     i18n("Refresh voice list, index path and audio files"),
                     variant="primary",
@@ -2126,7 +2126,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     visible=False,
                     interactive=True,
                 )
-                clean_button.click(fn=clean, inputs=[], outputs=[sid0], api_name="clean")
+                clean_button.click(fn=clean, inputs=[], outputs=[
+                                   sid0], api_name="clean")
 
             with gr.Group():
                 gr.Markdown(
@@ -2161,7 +2162,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             interactive=True,
                         )
                         input_audio1.change(
-                            fn=lambda: "", inputs=[], outputs=[input_audio0]
+                            fn=lambda: "", inputs=[], outputs=[input_audio0], api_name="input_audio1"
                         )
                         f0method0 = gr.Radio(
                             label=i18n(
@@ -2193,6 +2194,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             fn=whethercrepeornah,
                             inputs=[f0method0],
                             outputs=[crepe_hop_length],
+                            api_name="whethercrepeornah_f0method0"
                         )
                         filter_radius0 = gr.Slider(
                             minimum=0,
@@ -2223,6 +2225,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             fn=change_choices,
                             inputs=[],
                             outputs=[sid0, file_index2, input_audio1],
+                            api_name="change_choices"
                         )
                         # file_big_npy1 = gr.Textbox(
                         #     label=i18n("特征文件路径"),
@@ -2309,6 +2312,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             fn=preset_apply,
                             inputs=[formant_preset, qfrency, tmbre],
                             outputs=[qfrency, tmbre],
+                            api_name="preset_apply_formant_preset"
                         )
                         frmntbut = gr.Button(
                             "Apply", variant="primary", visible=bool(DoFormant)
@@ -2331,16 +2335,19 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                                 formant_preset,
                                 formant_refresh_button,
                             ],
+                            api_name="formant_enabled"
                         )
                         frmntbut.click(
                             fn=formant_apply,
                             inputs=[qfrency, tmbre],
                             outputs=[qfrency, tmbre],
+                            api_name="formant_apply"
                         )
                         formant_refresh_button.click(
                             fn=update_fshift_presets,
                             inputs=[formant_preset, qfrency, tmbre],
                             outputs=[formant_preset, qfrency, tmbre],
+                            api_name="update_fshift_presets"
                         )
                         # formant_refresh_button.click(fn=preset_apply, inputs=[formant_preset, qfrency, tmbre], outputs=[formant_preset, qfrency, tmbre])
                         # formant_refresh_button.click(fn=update_fshift_presets, inputs=[formant_preset, qfrency, tmbre], outputs=[formant_preset, qfrency, tmbre])
@@ -2356,7 +2363,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         [
                             spk_item,
                             input_audio0,
-                            # input_file0,
                             input_audio1,
                             vc_transform0,
                             f0_file,
@@ -2372,6 +2378,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             crepe_hop_length,
                         ],
                         [vc_output1, vc_output2],
+                        api_name="vc_single_but0"
                     )
             with gr.Group():
                 gr.Markdown(
@@ -2419,11 +2426,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             fn=match_index,
                             inputs=[sid0],
                             outputs=[file_index2, file_index4],
+                            api_name="match_index_sid0"
                         )
                         refresh_button.click(
                             fn=lambda: change_choices()[1],
                             inputs=[],
                             outputs=file_index4,
+                            api_name="change_choices"
                         )
                         # file_big_npy2 = gr.Textbox(
                         #     label=i18n("特征文件路径"),
@@ -2503,11 +2512,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             crepe_hop_length,
                         ],
                         [vc_output3],
+                        api_name="vc_multi"
                     )
             sid0.change(
                 fn=get_vc,
                 inputs=[sid0, protect0, protect1],
                 outputs=[spk_item, protect0, protect1],
+                api_name="get_vc"
             )
         with gr.TabItem(i18n("伴奏人声分离&去混响&去回声")):
             with gr.Group():
@@ -2575,6 +2586,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             format0,
                         ],
                         [vc_output4],
+                        api_name="uvr"
                     )
         with gr.TabItem(i18n("训练")):
             gr.Markdown(
@@ -2634,7 +2646,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     info1 = gr.Textbox(label=i18n("输出信息"), value="")
                     but1.click(
                         preprocess_dataset, [
-                            trainset_dir4, exp_dir1, sr2, np7], [info1]
+                            trainset_dir4, exp_dir1, sr2, np7], [info1], "preprocess_dataset"
                     )
             with gr.Group():
                 step2b = gr.Markdown(
@@ -2682,6 +2694,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             fn=whethercrepeornah,
                             inputs=[f0method8],
                             outputs=[extraction_crepe_hop_length],
+                            api_name="whethercrepeornah_f0method8"
                         )
                     but2 = gr.Button(i18n("特征提取"), variant="primary")
                     info2 = gr.Textbox(
@@ -2699,6 +2712,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             extraction_crepe_hop_length,
                         ],
                         [info2],
+                        "extract_f0_feature"
                     )
             with gr.Group():
                 gr.Markdown(value=i18n("step3: 填写训练设置, 开始训练模型和索引"))
@@ -2760,11 +2774,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         change_sr2,
                         [sr2, if_f0_3, version19],
                         [pretrained_G14, pretrained_D15],
+                        "change_sr2"
                     )
                     version19.change(
                         change_version19,
                         [sr2, if_f0_3, version19],
                         [pretrained_G14, pretrained_D15, sr2],
+                        "change_version19"
                     )
                     # if f0_3 put here
                     if_f0_3.change(
@@ -2791,11 +2807,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             but2,
                             info2,
                         ],
+                        api_name="change_f0"
                     )
                     if_f0_3.change(
                         fn=whethercrepeornah,
                         inputs=[f0method8],
                         outputs=[extraction_crepe_hop_length],
+                        api_name="whethercrepeornah_if_f0_3"
                     )
                     gpus16 = gr.Textbox(
                         label=i18n("以-分隔输入使用的卡号, 例如   0-1-2   使用卡0和卡1和卡2"),
@@ -2813,11 +2831,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         fn=stoptraining,
                         inputs=[gr.Number(value=0, visible=False)],
                         outputs=[but3, butstop],
+                        api_name="stoptraining_but3"
                     )
                     butstop.click(
                         fn=stoptraining,
                         inputs=[gr.Number(value=1, visible=False)],
                         outputs=[butstop, but3],
+                        api_name="stoptraining_butstop"
                     )
 
                     but4 = gr.Button(i18n("训练特征索引"), variant="primary")
@@ -2829,6 +2849,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         fn=stepdisplay,
                         inputs=[if_save_every_weights18],
                         outputs=[save_epoch10],
+                        api_name="stepdisplay"
                     )
 
                     but3.click(
@@ -2850,9 +2871,10 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                             version19,
                         ],
                         [info3, butstop, but3],
+                        "click_train_but3"
                     )
 
-                    but4.click(train_index, [exp_dir1, version19], info3)
+                    but4.click(train_index, [exp_dir1, version19], info3, "train_index_but4")
 
                     # but5.click(
                     #    train1key,
@@ -2951,6 +2973,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         version_2,
                     ],
                     info4,
+                    "merge_but6"
                 )  # def merge(path1,path2,alpha1,sr,f0,info):
             with gr.Group():
                 gr.Markdown(value=i18n("修改模型信息(仅支持weights文件夹下提取的小模型文件)"))
@@ -2980,7 +3003,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     info5 = gr.Textbox(label=i18n("输出信息"),
                                        value="", max_lines=8)
                 but7.click(change_info, [ckpt_path0,
-                                         info_, name_to_save1], info5)
+                                         info_, name_to_save1], info5, "change_info_but7")
             with gr.Group():
                 gr.Markdown(value=i18n("查看模型信息(仅支持weights文件夹下提取的小模型文件)"))
                 with gr.Row():
@@ -2993,7 +3016,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     but8 = gr.Button(i18n("查看"), variant="primary")
                     info6 = gr.Textbox(label=i18n("输出信息"),
                                        value="", max_lines=8)
-                but8.click(show_info, [ckpt_path1], info6)
+                but8.click(show_info, [ckpt_path1], info6, "show_info_but8")
             with gr.Group():
                 gr.Markdown(
                     value=i18n(
@@ -3044,12 +3067,13 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                                        value="", max_lines=8)
                     ckpt_path2.change(
                         change_info_, [ckpt_path2], [
-                            sr__, if_f0__, version_1]
+                            sr__, if_f0__, version_1], "change_info_ckpt_path2"
                     )
                 but9.click(
                     extract_small_model,
                     [ckpt_path2, save_name, sr__, if_f0__, info___, version_1],
                     info7,
+                    "extract_small_model_but9"
                 )
 
         with gr.TabItem(i18n("Onnx导出")):
@@ -3071,7 +3095,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                 infoOnnx = gr.Label(label="info")
             with gr.Row():
                 butOnnx = gr.Button(i18n("导出Onnx模型"), variant="primary")
-            butOnnx.click(export_onnx, [ckpt_dir, onnx_dir], infoOnnx)
+            butOnnx.click(export_onnx, [ckpt_dir, onnx_dir], infoOnnx, "export_onnx_butOnnx")
 
         tab_faq = i18n("常见问题解答")
         with gr.TabItem(tab_faq):
@@ -3086,132 +3110,79 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
             except:
                 gr.Markdown(traceback.format_exc())
 
-    # region Mangio Preset Handler Region
-    def save_preset(
-        preset_name,
-        sid0,
-        vc_transform,
-        input_audio0,
-        input_audio1,
-        f0method,
-        crepe_hop_length,
-        filter_radius,
-        file_index1,
-        file_index2,
-        index_rate,
-        resample_sr,
-        rms_mix_rate,
-        protect,
-        f0_file,
-    ):
-        data = None
-        with open("../inference-presets.json", "r") as file:
-            data = json.load(file)
-        preset_json = {
-            "name": preset_name,
-            "model": sid0,
-            "transpose": vc_transform,
-            "audio_file": input_audio0,
-            "auto_audio_file": input_audio1,
-            "f0_method": f0method,
-            "crepe_hop_length": crepe_hop_length,
-            "median_filtering": filter_radius,
-            "feature_path": file_index1,
-            "auto_feature_path": file_index2,
-            "search_feature_ratio": index_rate,
-            "resample": resample_sr,
-            "volume_envelope": rms_mix_rate,
-            "protect_voiceless": protect,
-            "f0_file_path": f0_file,
-        }
-        data["presets"].append(preset_json)
-        with open("../inference-presets.json", "w") as file:
-            json.dump(data, file)
-            file.flush()
-        print("Saved Preset %s into inference-presets.json!" % preset_name)
+    # # region Mangio Preset Handler Region
+    # def save_preset(
+    #     preset_name,
+    #     sid0,
+    #     vc_transform,
+    #     input_audio0,
+    #     input_audio1,
+    #     f0method,
+    #     crepe_hop_length,
+    #     filter_radius,
+    #     file_index1,
+    #     file_index2,
+    #     index_rate,
+    #     resample_sr,
+    #     rms_mix_rate,
+    #     protect,
+    #     f0_file,
+    # ):
+    #     data = None
+    #     with open("../inference-presets.json", "r") as file:
+    #         data = json.load(file)
+    #     preset_json = {
+    #         "name": preset_name,
+    #         "model": sid0,
+    #         "transpose": vc_transform,
+    #         "audio_file": input_audio0,
+    #         "auto_audio_file": input_audio1,
+    #         "f0_method": f0method,
+    #         "crepe_hop_length": crepe_hop_length,
+    #         "median_filtering": filter_radius,
+    #         "feature_path": file_index1,
+    #         "auto_feature_path": file_index2,
+    #         "search_feature_ratio": index_rate,
+    #         "resample": resample_sr,
+    #         "volume_envelope": rms_mix_rate,
+    #         "protect_voiceless": protect,
+    #         "f0_file_path": f0_file,
+    #     }
+    #     data["presets"].append(preset_json)
+    #     with open("../inference-presets.json", "w") as file:
+    #         json.dump(data, file)
+    #         file.flush()
+    #     print("Saved Preset %s into inference-presets.json!" % preset_name)
 
-    def on_preset_changed(preset_name):
-        print("Changed Preset to %s!" % preset_name)
-        data = None
-        with open("../inference-presets.json", "r") as file:
-            data = json.load(file)
+    # def on_preset_changed(preset_name):
+    #     print("Changed Preset to %s!" % preset_name)
+    #     data = None
+    #     with open("../inference-presets.json", "r") as file:
+    #         data = json.load(file)
 
-        print("Searching for " + preset_name)
-        returning_preset = None
-        for preset in data["presets"]:
-            if preset["name"] == preset_name:
-                print("Found a preset")
-                returning_preset = preset
-        # return all new input values
-        return (
-            # returning_preset['model'],
-            # returning_preset['transpose'],
-            # returning_preset['audio_file'],
-            # returning_preset['f0_method'],
-            # returning_preset['crepe_hop_length'],
-            # returning_preset['median_filtering'],
-            # returning_preset['feature_path'],
-            # returning_preset['auto_feature_path'],
-            # returning_preset['search_feature_ratio'],
-            # returning_preset['resample'],
-            # returning_preset['volume_envelope'],
-            # returning_preset['protect_voiceless'],
-            # returning_preset['f0_file_path']
-        )
-
-    # Preset State Changes
-
-    # This click calls save_preset that saves the preset into inference-presets.json with the preset name
-    # mangio_preset_save_btn.click(
-    #     fn=save_preset,
-    #     inputs=[
-    #         mangio_preset_name_save,
-    #         sid0,
-    #         vc_transform0,
-    #         input_audio0,
-    #         f0method0,
-    #         crepe_hop_length,
-    #         filter_radius0,
-    #         file_index1,
-    #         file_index2,
-    #         index_rate1,
-    #         resample_sr0,
-    #         rms_mix_rate0,
-    #         protect0,
-    #         f0_file
-    #     ],
-    #     outputs=[]
-    # )
-
-    # mangio_preset.change(
-    #     on_preset_changed,
-    #     inputs=[
-    #         # Pass inputs here
-    #         mangio_preset
-    #     ],
-    #     outputs=[
-    #         # Pass Outputs here. These refer to the gradio elements that we want to directly change
-    #         # sid0,
-    #         # vc_transform0,
-    #         # input_audio0,
-    #         # f0method0,
-    #         # crepe_hop_length,
-    #         # filter_radius0,
-    #         # file_index1,
-    #         # file_index2,
-    #         # index_rate1,
-    #         # resample_sr0,
-    #         # rms_mix_rate0,
-    #         # protect0,
-    #         # f0_file
-    #     ]
-    # )
-    # endregion
-
-    # with gr.TabItem(i18n("招募音高曲线前端编辑器")):
-    #     gr.Markdown(value=i18n("加开发群联系我xxxxx"))
-    # with gr.TabItem(i18n("点击查看交流、问题反馈群号")):
-    #     gr.Markdown(value=i18n("xxxxx"))
+    #     print("Searching for " + preset_name)
+    #     returning_preset = None
+    #     for preset in data["presets"]:
+    #         if preset["name"] == preset_name:
+    #             print("Found a preset")
+    #             returning_preset = preset
+    #     # return all new input values
+    #     return (
+    #         # returning_preset['model'],
+    #         # returning_preset['transpose'],
+    #         # returning_preset['audio_file'],
+    #         # returning_preset['f0_method'],
+    #         # returning_preset['crepe_hop_length'],
+    #         # returning_preset['median_filtering'],
+    #         # returning_preset['feature_path'],
+    #         # returning_preset['auto_feature_path'],
+    #         # returning_preset['search_feature_ratio'],
+    #         # returning_preset['resample'],
+    #         # returning_preset['volume_envelope'],
+    #         # returning_preset['protect_voiceless'],
+    #         # returning_preset['f0_file_path']
+    #     )
+    # # endregion
 
     if (
         config.iscolab or config.paperspace
@@ -3223,7 +3194,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
             inbrowser=not config.noautoopen,
             server_port=config.listen_port,
             quiet=False,
-            auth=check_auth,
+            # auth=check_auth,
         )
 
 # endregion
