@@ -14,6 +14,7 @@ from subprocess import Popen
 from time import sleep
 
 import faiss
+from fastapi import FastAPI
 import ffmpeg
 import gradio as gr
 import numpy as np
@@ -22,6 +23,7 @@ import soundfile as sf
 import torch
 from fairseq import checkpoint_utils
 from sklearn.cluster import MiniBatchKMeans
+import uvicorn
 
 from config import Config
 from i18n import I18nAuto
@@ -31,7 +33,7 @@ from lib.infer_pack.models import (SynthesizerTrnMs256NSFsid,
                                    SynthesizerTrnMs768NSFsid,
                                    SynthesizerTrnMs768NSFsid_nono)
 from lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
-from MDXNet import MDXNetDereverb
+# from MDXNet import MDXNetDereverb
 from my_utils import CSVutil, load_audio
 from train.process_ckpt import (change_info, extract_small_model, merge,
                                 show_info)
@@ -437,7 +439,8 @@ def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins, agg, format
                 '"').strip("\n").strip('"').strip(" ")
         )
         if model_name == "onnx_dereverb_By_FoxJoy":
-            pre_fun = MDXNetDereverb(15)
+            print("heo")
+            # pre_fun = MDXNetDereverb(15)
         else:
             func = _audio_pre_ if "DeEcho" not in model_name else _audio_pre_new
             pre_fun = func(
@@ -2085,7 +2088,8 @@ def handle_logout():
 with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
     logout_btn = gr.LogoutButton(value="LOGOUT")
     gr.HTML("<h1> The Mangio-RVC-Fork 💻 </h1>")
-    logout_btn.click(fn=handle_logout, show_progress=True, api_name="logout_logout_btn")
+    logout_btn.click(fn=handle_logout, show_progress=True,
+                     api_name="logout_logout_btn")
 
     gr.Markdown(
         value=i18n(
@@ -2874,7 +2878,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                         "click_train_but3"
                     )
 
-                    but4.click(train_index, [exp_dir1, version19], info3, "train_index_but4")
+                    but4.click(train_index, [
+                               exp_dir1, version19], info3, "train_index_but4")
 
                     # but5.click(
                     #    train1key,
@@ -3095,7 +3100,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                 infoOnnx = gr.Label(label="info")
             with gr.Row():
                 butOnnx = gr.Button(i18n("导出Onnx模型"), variant="primary")
-            butOnnx.click(export_onnx, [ckpt_dir, onnx_dir], infoOnnx, "export_onnx_butOnnx")
+            butOnnx.click(
+                export_onnx, [ckpt_dir, onnx_dir], infoOnnx, "export_onnx_butOnnx")
 
         tab_faq = i18n("常见问题解答")
         with gr.TabItem(tab_faq):
@@ -3184,17 +3190,20 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
     #     )
     # # endregion
 
-    if (
-        config.iscolab or config.paperspace
-    ):  # Share gradio link for colab and paperspace (FORK FEATURE)
-        app.queue(concurrency_count=511, max_size=1022).launch(share=True)
-    else:
-        app.queue(concurrency_count=511, max_size=1022).launch(
-            server_name="0.0.0.0",
-            inbrowser=not config.noautoopen,
-            server_port=config.listen_port,
-            quiet=False,
-            # auth=check_auth,
-        )
+    # if (
+    #     config.iscolab or config.paperspace
+    # ):  # Share gradio link for colab and paperspace (FORK FEATURE)
+    #     app.queue(concurrency_count=511, max_size=1022).launch(share=True)
+    # else:
+    #     app.queue(concurrency_count=511, max_size=1022).launch(
+    #         server_name="0.0.0.0",
+    #         inbrowser=not config.noautoopen,
+    #         server_port=config.listen_port,
+    #         quiet=False,
+    #     )
 
 # endregion
+appF = FastAPI()
+
+appF = gr.mount_gradio_app(appF, app, "/home")
+uvicorn.run(appF, host="0.0.0.0", port=5001)
