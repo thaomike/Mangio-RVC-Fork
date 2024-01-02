@@ -1,3 +1,4 @@
+from fastapi.responses import RedirectResponse
 import json  # Mangio fork using json for preset saving
 import logging
 import math
@@ -14,16 +15,17 @@ from subprocess import Popen
 from time import sleep
 
 import faiss
-from fastapi import FastAPI
 import ffmpeg
 import gradio as gr
 import numpy as np
 import scipy.io.wavfile as wavfile
 import soundfile as sf
 import torch
-from fairseq import checkpoint_utils
-from sklearn.cluster import MiniBatchKMeans
 import uvicorn
+from fairseq import checkpoint_utils
+from fastapi import FastAPI, Request, Response, Body
+import time
+from sklearn.cluster import MiniBatchKMeans
 
 from config import Config
 from i18n import I18nAuto
@@ -38,6 +40,7 @@ from my_utils import CSVutil, load_audio
 from train.process_ckpt import (change_info, extract_small_model, merge,
                                 show_info)
 from vc_infer_pipeline import VC
+
 now_dir = os.getcwd()
 sys.path.append(now_dir)
 
@@ -3205,5 +3208,57 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
 # endregion
 appF = FastAPI()
 
-appF = gr.mount_gradio_app(appF, app, "/home")
+
+@appF.get("/logout")
+def logout():
+    print("this is logout")
+
+
+@appF.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    # if not request.cookies.get('token'):
+    #     print('oang')
+    #     return RedirectResponse(url="/abc", status_code=302)
+    return response
+
+
+@appF.get("/abc")
+def hello():
+    print("ao")
+
+
+@appF.post("/login")
+async def login(response: Response, request_body: dict = Body(...)):
+    print(request_body)
+    # a = await request.json()
+    # print(a)
+    response.set_cookie(key="token", value="1242r")
+    response.body = json.dumps({"abc": "abc"})
+    response.media_type = "application/json"
+    response.status_code = 200
+    return response
+
+
+@appF.get("/login")
+def handle_login(request: Request, response: Response):
+    print(request.get("password"))
+    response.set_cookie(key="token", value="1242r")
+    response.body = json.dumps({"abc": "abc"})
+    response.media_type = "application/json"
+    response.status_code = 200
+    return response
+
+
+@appF.post("/logout")
+def logout():
+    a = RedirectResponse("/login")
+    a.delete_cookie("token")
+    return a
+
+
+# appF = gr.mount_gradio_app(appF, app, "/home")
 uvicorn.run(appF, host="0.0.0.0", port=5001)

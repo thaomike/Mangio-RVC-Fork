@@ -1371,4 +1371,7 @@ appFastAPI = FastAPI(
 
 
 appFastAPI = gr.mount_gradio_app(appFastAPI, app, "/home")
+
+
+
 # appFastAPI.add_middleware(SessionMiddleware, secret_key=uuid.uuid4().hex)
