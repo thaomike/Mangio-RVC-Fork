@@ -1,3 +1,6 @@
+from fastapi import Form, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import json  # Mangio fork using json for preset saving
 import logging
@@ -3206,59 +3209,84 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
     #     )
 
 # endregion
+
+
 appF = FastAPI()
+appF.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-@appF.get("/logout")
-def logout():
-    print("this is logout")
+@appF.get("/login")
+async def get_login_page():
+    return FileResponse("static/login.html")
 
 
 @appF.middleware("http")
 async def add_process_time_header(request: Request, call_next):
-    start_time = time.time()
     response = await call_next(request)
-    process_time = time.time() - start_time
-    response.headers["X-Process-Time"] = str(process_time)
-    # if not request.cookies.get('token'):
-    #     print('oang')
-    #     return RedirectResponse(url="/abc", status_code=302)
+    if request.url.path == '/login':
+        return response
+    token = request.cookies.get('token')
+    if not token:
+        return RedirectResponse(url="/login", status_code=302)
+    with open("session.auth", "r") as f:
+        auth = f.readline()
+        if not auth:
+            return RedirectResponse(url="/login", status_code=302)
+        auth_dict = json.loads(auth)
+        if 'username' in auth_dict and auth_dict['username'] != token:
+            return RedirectResponse(url="/login", status_code=302)
     return response
-
-
-@appF.get("/abc")
-def hello():
-    print("ao")
 
 
 @appF.post("/login")
-async def login(response: Response, request_body: dict = Body(...)):
-    print(request_body)
-    # a = await request.json()
-    # print(a)
-    response.set_cookie(key="token", value="1242r")
-    response.body = json.dumps({"abc": "abc"})
-    response.media_type = "application/json"
-    response.status_code = 200
-    return response
+async def login(username: str = Form(...), password: str = Form(...)):
+    auth = None
+    with open("session.auth", "r") as f:
+        auth = f.readline()
+        if auth:
+            auth = json.loads(auth)
+        if auth and auth['is_online'] == True:
+            raise HTTPException(
+                status_code=403,
+                detail="Please wait util other user done their session",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    flag = False
+    with open("user.auth", "r") as f:
+        while True:
+            user = f.readline()
+            if not user:
+                break
+            user_dict = json.loads(user)
+            if (user_dict['username'] == username and user_dict['password'] == password):
+                flag = True
+                break
+    if flag:
+        with open("session.auth", 'w') as f:
+            f.write(json.dumps({'is_online': True, 'username': username}))
+        redirect_response = RedirectResponse("/home", 302)
+        print('no way ?')
+        redirect_response.set_cookie(key="token", value=username)
+        return redirect_response
+    raise HTTPException(
+        status_code=401,
+        detail="Invalid credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
-@appF.get("/login")
-def handle_login(request: Request, response: Response):
-    print(request.get("password"))
-    response.set_cookie(key="token", value="1242r")
-    response.body = json.dumps({"abc": "abc"})
-    response.media_type = "application/json"
-    response.status_code = 200
-    return response
+def check_false_session():
+    with open("session.auth", 'w') as f:
+        f.write(json.dumps({'is_online': False, 'username': ""}))
 
 
-@appF.post("/logout")
-def logout():
-    a = RedirectResponse("/login")
-    a.delete_cookie("token")
-    return a
+@appF.get("/logout")
+async def logout(background_tasks: BackgroundTasks):
+    redirect_response = RedirectResponse("/login")
+    redirect_response.delete_cookie("token")
+    background_tasks.add_task(check_false_session)
+    return redirect_response
 
 
-# appF = gr.mount_gradio_app(appF, app, "/home")
+appF = gr.mount_gradio_app(appF, app, "/home")
 uvicorn.run(appF, host="0.0.0.0", port=5001)
