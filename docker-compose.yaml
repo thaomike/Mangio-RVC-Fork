@@ -4,11 +4,27 @@ version: "3.7"
 
 services:
   rvc:
-    container_name: thaomike/rvc:1.0
+    container_name: rvc
+    image: thaomike/rvc:2.0
     build:
       context: ./
       dockerfile: Dockerfile
     restart: always
     ports:
       - "7866:7866"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: [ "0" ]
+              capabilities: [ gpu ]
+    volumes:
+      - ./user.auth:/app/user.auth
+      - ./session.auth:/app/session.auth
+      - ./audio-output:/app/audio-output
+      - ./audios:/app/audios
+      - ./weights:/app/weights
+    
+    
 

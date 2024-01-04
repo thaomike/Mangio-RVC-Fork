@@ -3289,4 +3289,4 @@ async def logout(background_tasks: BackgroundTasks):
 
 
 appF = gr.mount_gradio_app(appF, app, "/home")
-uvicorn.run(appF, host="0.0.0.0", port=5001)
+uvicorn.run(appF, host="0.0.0.0", port=7866)
