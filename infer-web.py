@@ -1,7 +1,4 @@
-from fastapi import Form, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+import datetime
 import json  # Mangio fork using json for preset saving
 import logging
 import math
@@ -11,12 +8,13 @@ import shutil
 import signal
 import sys
 import threading
+import time
 import traceback
 import warnings
 from random import shuffle
 from subprocess import Popen
 from time import sleep, time
-from MDXNet import MDXNetDereverb
+
 import faiss
 import ffmpeg
 import gradio as gr
@@ -26,8 +24,10 @@ import soundfile as sf
 import torch
 import uvicorn
 from fairseq import checkpoint_utils
-from fastapi import FastAPI, Request, Response, Body
-import time
+from fastapi import (BackgroundTasks, Body, FastAPI, Form, HTTPException,
+                     Request, Response)
+from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from sklearn.cluster import MiniBatchKMeans
 
 from config import Config
@@ -38,7 +38,7 @@ from lib.infer_pack.models import (SynthesizerTrnMs256NSFsid,
                                    SynthesizerTrnMs768NSFsid,
                                    SynthesizerTrnMs768NSFsid_nono)
 from lib.infer_pack.models_onnx import SynthesizerTrnMsNSFsidM
-# from MDXNet import MDXNetDereverb
+from MDXNet import MDXNetDereverb
 from my_utils import CSVutil, load_audio
 from train.process_ckpt import (change_info, extract_small_model, merge,
                                 show_info)
@@ -3232,6 +3232,15 @@ async def add_process_time_header(request: Request, call_next):
         auth_dict = json.loads(auth)
         if 'username' in auth_dict and auth_dict['username'] != token:
             return RedirectResponse(url="/login", status_code=302)
+        if 'expire' in auth_dict:
+            now = datetime.datetime.now()
+            expired = datetime.datetime.strptime(auth_dict['expire'], "%Y%m%d%H%M%S")
+            if now > expired:
+                redirect_response = RedirectResponse(
+                    url='/login', status_code=302)
+                redirect_response.delete_cookie('token')
+                return redirect_response
+
     return response
 
 
@@ -3242,14 +3251,14 @@ async def login(username: str = Form(...), password: str = Form(...)):
         auth = f.readline()
         if auth:
             auth = json.loads(auth)
-        username = ""
+        username_auth = ""
         if 'username' in auth:
-            username = auth['username']
+            username_auth = auth['username']
         if auth and auth['is_online'] == True:
             raise HTTPException(
                 status_code=403,
                 detail="Hệ thống hiện tại chỉ được phép 1 người sử dụng. Xin vui lòng chờ hoặc liên hệ với user là: " +
-                auth['username'],
+                username_auth,
                 headers={"WWW-Authenticate": "Bearer"},
             )
     flag = False
@@ -3263,8 +3272,10 @@ async def login(username: str = Form(...), password: str = Form(...)):
                 flag = True
                 break
     if flag:
+        expired = datetime.datetime.now() + datetime.timedelta(minutes=30)
         with open("auth/session.auth", 'w') as f:
-            f.write(json.dumps({'is_online': True, 'username': username}))
+            f.write(json.dumps(
+                {'is_online': True, 'username': username, 'expire': expired.strftime("%Y%m%d%H%M%S")}))
         redirect_response = RedirectResponse("/home", 302)
         redirect_response.set_cookie(key="token", value=username)
         return redirect_response
