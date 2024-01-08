@@ -15,8 +15,8 @@ import traceback
 import warnings
 from random import shuffle
 from subprocess import Popen
-from time import sleep
-
+from time import sleep, time
+from MDXNet import MDXNetDereverb
 import faiss
 import ffmpeg
 import gradio as gr
@@ -90,7 +90,7 @@ except (ValueError, TypeError, IndexError):
     DoFormant, Quefrency, Timbre = False, 1.0, 1.0
     CSVutil("csvdb/formanting.csv", "w+",
             "formanting", DoFormant, Quefrency, Timbre)
-
+cpt = None
 config = Config()
 i18n = I18nAuto()
 i18n.print()
@@ -154,7 +154,7 @@ hubert_model = None
 def load_hubert():
     global hubert_model
     models, _, _ = checkpoint_utils.load_model_ensemble_and_task(
-        ["/home/vfast/Downloads/hubert_base.pt"],
+        ["hubert_base.pt"],
         suffix="",
     )
     hubert_model = models[0]
@@ -267,14 +267,6 @@ def vc_single(
     if input_audio_path0 is None or input_audio_path0 is None:
         return "You need to upload an audio", None
     f0_up_key = int(f0_up_key)
-    # print(input_audio_path0, input_audio_path1)
-
-    # if input_file0.name:
-    #     new_path = os.path.abspath(
-    #         os.getcwd()).replace("\\", "/") + "/" + "audios" + "/" + input_file0.name.split("/").pop()
-
-    #     shutil.move(input_file0.name, new_path)
-    #     input_audio_path0 = new_path
     try:
         if input_audio_path0 == "":
             audio = load_audio(input_audio_path1, 16000,
@@ -445,8 +437,7 @@ def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins, agg, format
                 '"').strip("\n").strip('"').strip(" ")
         )
         if model_name == "onnx_dereverb_By_FoxJoy":
-            print("heo")
-            # pre_fun = MDXNetDereverb(15)
+            pre_fun = MDXNetDereverb(15)
         else:
             func = _audio_pre_ if "DeEcho" not in model_name else _audio_pre_new
             pre_fun = func(
@@ -554,6 +545,12 @@ def get_vc(sid, to_return_protect0, to_return_protect1):
             {"visible": False, "__type__": "update"},
             {"visible": False, "__type__": "update"},
             {"visible": False, "__type__": "update"},
+        )
+    if not sid:
+        return (
+            {"visible": True, "maximum": n_spk, "__type__": "update"},
+            to_return_protect0,
+            to_return_protect1,
         )
     person = "%s/%s" % (weight_root, sid)
     print("loading %s" % person)
@@ -2050,15 +2047,16 @@ block_request = False
 # structure:
 # {is_online: True, username: username_is_online}
 # {username: username, password: pass123}
-if not os.path.exists("session.auth"):
-    with open("session.auth", 'w') as f:
-        auth_check = {"is_online": False, "username": ""}
+if not os.path.exists("auth/session.auth"):
+    with open("auth/session.auth", 'w') as f:
+        auth_check = {"is_online": False,
+                      "username": "", "time_expired": time()}
         f.write(json.dumps(auth_check))
 
 
 def check_auth(username, password):
-    user_filename = 'user.auth'
-    session_filename = 'session.auth'
+    user_filename = 'auth/user.auth'
+    session_filename = 'auth/session.auth'
     login_success = False
     with open(session_filename, 'r') as f:
         auth_check = f.readline()
@@ -2085,8 +2083,7 @@ def check_auth(username, password):
 
 
 def handle_logout():
-    print('ju')
-    with open("session.auth", 'w') as f:
+    with open("auth/session.auth", 'w') as f:
         f.write(json.dumps({"is_online": False}))
 
 
@@ -2116,7 +2113,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
             with gr.Row():
                 # sid0 = gr.Dropdown(label=i18n("推理音色"), choices=sorted(names), value=check_for_name())
                 sid0 = gr.Dropdown(label=i18n("推理音色"),
-                                   choices=sorted(names), value="")
+                                   choices=sorted(names), value=None)
                 sid0_file = gr.File(label=i18n("推理音色"))
                 # input_audio_path2
                 sid0_file.upload(fn=changefile, inputs=[
@@ -2125,8 +2122,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     i18n("Refresh voice list, index path and audio files"),
                     variant="primary",
                 )
-                clean_button = gr.Button(
-                    i18n("卸载音色省显存"), variant="primary")
+                # clean_button = gr.Button(
+                #     i18n("卸载音色省显存"), variant="primary")
                 spk_item = gr.Slider(
                     minimum=0,
                     maximum=2333,
@@ -2136,8 +2133,8 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     visible=False,
                     interactive=True,
                 )
-                clean_button.click(fn=clean, inputs=[], outputs=[
-                                   sid0], api_name="clean")
+                # clean_button.click(fn=clean, inputs=[], outputs=[
+                #                    sid0], api_name="clean")
 
             with gr.Group():
                 gr.Markdown(
@@ -2642,7 +2639,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
                     trainset_dir4 = gr.Textbox(
                         label=i18n("输入训练文件夹路径"),
                         value=os.path.abspath(
-                            os.getcwd()) + "\\datasets\\",
+                            os.getcwd()) + "/datasets/",
                     )
                     spk_id5 = gr.Slider(
                         minimum=0,
@@ -3228,7 +3225,7 @@ async def add_process_time_header(request: Request, call_next):
     token = request.cookies.get('token')
     if not token:
         return RedirectResponse(url="/login", status_code=302)
-    with open("session.auth", "r") as f:
+    with open("auth/session.auth", "r") as f:
         auth = f.readline()
         if not auth:
             return RedirectResponse(url="/login", status_code=302)
@@ -3241,18 +3238,22 @@ async def add_process_time_header(request: Request, call_next):
 @appF.post("/login")
 async def login(username: str = Form(...), password: str = Form(...)):
     auth = None
-    with open("session.auth", "r") as f:
+    with open("auth/session.auth", "r") as f:
         auth = f.readline()
         if auth:
             auth = json.loads(auth)
+        username = ""
+        if 'username' in auth:
+            username = auth['username']
         if auth and auth['is_online'] == True:
             raise HTTPException(
                 status_code=403,
-                detail="Please wait util other user done their session",
+                detail="Hệ thống hiện tại chỉ được phép 1 người sử dụng. Xin vui lòng chờ hoặc liên hệ với user là: " +
+                auth['username'],
                 headers={"WWW-Authenticate": "Bearer"},
             )
     flag = False
-    with open("user.auth", "r") as f:
+    with open("auth/user.auth", "r") as f:
         while True:
             user = f.readline()
             if not user:
@@ -3262,10 +3263,9 @@ async def login(username: str = Form(...), password: str = Form(...)):
                 flag = True
                 break
     if flag:
-        with open("session.auth", 'w') as f:
+        with open("auth/session.auth", 'w') as f:
             f.write(json.dumps({'is_online': True, 'username': username}))
         redirect_response = RedirectResponse("/home", 302)
-        print('no way ?')
         redirect_response.set_cookie(key="token", value=username)
         return redirect_response
     raise HTTPException(
@@ -3276,7 +3276,7 @@ async def login(username: str = Form(...), password: str = Form(...)):
 
 
 def check_false_session():
-    with open("session.auth", 'w') as f:
+    with open("auth/session.auth", 'w') as f:
         f.write(json.dumps({'is_online': False, 'username': ""}))
 
 
@@ -3289,4 +3289,9 @@ async def logout(background_tasks: BackgroundTasks):
 
 
 appF = gr.mount_gradio_app(appF, app, "/home")
-uvicorn.run(appF, host="0.0.0.0", port=7866)
+port = 7866
+try:
+    port = int(os.environ['PORT'])
+except Exception as e:
+    print("Don't have port option")
+uvicorn.run(appF, host="0.0.0.0", port=port)

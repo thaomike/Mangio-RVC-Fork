@@ -5,13 +5,13 @@ version: "3.7"
 services:
   rvc:
     container_name: rvc
-    image: thaomike/rvc:2.0
+    image: thaomike/rvc:2.1
     build:
       context: ./
       dockerfile: Dockerfile
     restart: always
     ports:
-      - "7866:7866"
+      - "8000:7866"
     deploy:
       resources:
         reservations:
@@ -20,11 +20,7 @@ services:
               device_ids: [ "0" ]
               capabilities: [ gpu ]
     volumes:
-      - ./user.auth:/app/user.auth
-      - ./session.auth:/app/session.auth
-      - ./audio-output:/app/audio-output
+      - ./audio-outputs:/app/audio-outputs
       - ./audios:/app/audios
       - ./weights:/app/weights
-    
-    
-
+      - ./auth:app/auth

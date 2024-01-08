@@ -4,7 +4,8 @@ FROM python:3.10-bullseye
 
 RUN apt-get update; \ 
     apt-get install -y --no-install-recommends \
-    libsndfile1
+    libsndfile1\
+    ffmpeg
 
 EXPOSE 7866
 
