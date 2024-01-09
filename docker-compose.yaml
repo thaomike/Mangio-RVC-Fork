@@ -5,7 +5,7 @@ version: "3.7"
 services:
   rvc:
     container_name: rvc
-    image: thaomike/rvc:2.1
+    image: thaomike/rvc:3.0
     build:
       context: ./
       dockerfile: Dockerfile
@@ -23,4 +23,5 @@ services:
       - ./audio-outputs:/app/audio-outputs
       - ./audios:/app/audios
       - ./weights:/app/weights
-      - ./auth:app/auth
+      - ./auth:/app/auth
+      - ./datasets:/app/datasets

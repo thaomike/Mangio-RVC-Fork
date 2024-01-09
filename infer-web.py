@@ -3239,6 +3239,7 @@ async def add_process_time_header(request: Request, call_next):
                 redirect_response = RedirectResponse(
                     url='/login', status_code=302)
                 redirect_response.delete_cookie('token')
+                check_false_session()
                 return redirect_response
 
     return response
