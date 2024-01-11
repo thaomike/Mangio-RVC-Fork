@@ -3256,12 +3256,16 @@ async def login(username: str = Form(...), password: str = Form(...)):
         if 'username' in auth:
             username_auth = auth['username']
         if auth and auth['is_online'] == True:
-            raise HTTPException(
-                status_code=403,
-                detail="Hệ thống hiện tại chỉ được phép 1 người sử dụng. Xin vui lòng chờ hoặc liên hệ với user là: " +
-                username_auth,
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            if 'expire' in auth:
+                now = datetime.datetime.now()
+                expired = datetime.datetime.strptime(auth['expire'], "%Y%m%d%H%M%S")
+                if now < expired:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Hệ thống hiện tại chỉ được phép 1 người sử dụng. Xin vui lòng chờ hoặc liên hệ với user là: " +
+                        username_auth,
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
     flag = False
     with open("auth/user.auth", "r") as f:
         while True:
