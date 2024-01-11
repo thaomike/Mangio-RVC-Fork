@@ -1,3 +1,8 @@
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.middleware import Middleware
+from fastapi import FastAPI, Request, HTTPException
+from starlette.background import BackgroundTask
 import datetime
 import json  # Mangio fork using json for preset saving
 import logging
@@ -3217,32 +3222,88 @@ async def get_login_page():
     return FileResponse("static/login.html")
 
 
-@appF.middleware("http")
-async def add_process_time_header(request: Request, call_next):
-    response = await call_next(request)
-    if request.url.path == '/login':
-        return response
-    token = request.cookies.get('token')
-    if not token:
-        return RedirectResponse(url="/login", status_code=302)
-    with open("auth/session.auth", "r") as f:
-        auth = f.readline()
-        if not auth:
+class RedirectMiddleware(BaseHTTPMiddleware):
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ):
+        # Check if the request path is the old URL that you want to redirect
+        print(request.url.path, 'this is path')
+        if request.url.path == '/login':
+            return await call_next(request)
+        token = request.cookies.get('token')
+        if not token:
             return RedirectResponse(url="/login", status_code=302)
-        auth_dict = json.loads(auth)
-        if 'username' in auth_dict and auth_dict['username'] != token:
-            return RedirectResponse(url="/login", status_code=302)
-        if 'expire' in auth_dict:
-            now = datetime.datetime.now()
-            expired = datetime.datetime.strptime(auth_dict['expire'], "%Y%m%d%H%M%S")
-            if now > expired:
-                redirect_response = RedirectResponse(
-                    url='/login', status_code=302)
-                redirect_response.delete_cookie('token')
-                check_false_session()
-                return redirect_response
+        with open("auth/session.auth", "r") as f:
+            auth = f.readline()
+            if not auth:
+                return RedirectResponse(url="/login", status_code=302)
+            auth_dict = json.loads(auth)
+            if 'username' in auth_dict and auth_dict['username'] != token:
+                return RedirectResponse(url="/login", status_code=302)
+            if 'expire' in auth_dict:
+                now = datetime.datetime.now()
+                expired = datetime.datetime.strptime(
+                    auth_dict['expire'], "%Y%m%d%H%M%S")
+                if now > expired:
 
-    return response
+                    if "audio.wav" in request.url.path:
+                        return await call_next(request)
+                    request.scope['path'] = '/login'
+                    
+                    headers = dict(request.scope['headers'])
+                    headers[b'custom-header'] = b'my custom header'
+                    request.scope['headers'] = [(k, v)
+                                                for k, v in headers.items()]
+                    response = await call_next(request)
+                    response.background = BackgroundTask(check_false_session)
+
+                    return response
+
+        # Continue with the regular flow if no redirection is needed
+        return await call_next(request)
+
+
+appF.add_middleware(RedirectMiddleware)
+
+
+# @appF.middleware("http")
+# async def check_auth_middleware(request: Request, call_next):
+#     if request.url.path == '/login':
+#         return await call_next(request)
+#     token = request.cookies.get('token')
+#     if not token:
+#         return RedirectResponse(url="/login", status_code=302)
+#     with open("auth/session.auth", "r") as f:
+#         auth = f.readline()
+#         if not auth:
+#             return RedirectResponse(url="/login", status_code=302)
+#         auth_dict = json.loads(auth)
+#         if 'username' in auth_dict and auth_dict['username'] != token:
+#             return RedirectResponse(url="/login", status_code=302)
+#         if 'expire' in auth_dict:
+#             now = datetime.datetime.now()
+#             expired = datetime.datetime.strptime(
+#                 auth_dict['expire'], "%Y%m%d%H%M%S")
+#             if now > expired:
+
+#                 if "audio.wav" in request.url.path:
+#                     return await call_next(request)
+#                 request.scope['path'] = '/login'
+#                 headers = dict(request.scope['headers'])
+#                 headers[b'custom-header'] = b'my custom header'
+#                 request.scope['headers'] = [(k, v) for k, v in headers.items()]
+#                 response = await call_next(request)
+#                 response.background = BackgroundTask(check_false_session)
+
+#                 return response
+
+#                 redirect_response = RedirectResponse(
+#                     url='/login', status_code=302)
+#                 redirect_response.delete_cookie('token')
+#                 response.background = BackgroundTask(check_false_session)
+#                 return redirect_response
+
+#     return await call_next(request)
 
 
 @appF.post("/login")
@@ -3258,7 +3319,8 @@ async def login(username: str = Form(...), password: str = Form(...)):
         if auth and auth['is_online'] == True:
             if 'expire' in auth:
                 now = datetime.datetime.now()
-                expired = datetime.datetime.strptime(auth['expire'], "%Y%m%d%H%M%S")
+                expired = datetime.datetime.strptime(
+                    auth['expire'], "%Y%m%d%H%M%S")
                 if now < expired:
                     raise HTTPException(
                         status_code=403,
