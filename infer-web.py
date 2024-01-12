@@ -3213,7 +3213,18 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Mangio-RVC-Web 💻") as app:
 # endregion
 
 
-appF = FastAPI()
+appF = FastAPI(
+    title='Text to Speech',
+    description='Auto render speech from text',
+    version='Version: 1.2.0',
+    contact={
+        "url": 'https://vfastsoft.com'
+    },
+    swagger_ui_parameters={"defaultModelsExpandDepth": -1},
+    license_info={
+        "name": "VFAST License",
+        "url": 'https://vfastsoft.com'
+    })
 appF.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -3228,17 +3239,28 @@ class RedirectMiddleware(BaseHTTPMiddleware):
     ):
         # Check if the request path is the old URL that you want to redirect
         print(request.url.path, 'this is path')
-        if request.url.path == '/login':
+        if request.url.path == '/login' or request.url.path == '/':
             return await call_next(request)
         token = request.cookies.get('token')
         if not token:
+            print('not token, redirect to login')
             return RedirectResponse(url="/login", status_code=302)
+
+        if request.method == 'POST' and 'predict' in request.url.path:
+            print('predict go ahead')
+            background_tasks = BackgroundTask(check_false_session)
+
+            response = RedirectResponse(
+                url="/home", status_code=303, headers={"token": "deleted", "time": "hi"}, background=background_tasks)
+            return response
         with open("auth/session.auth", "r") as f:
             auth = f.readline()
             if not auth:
+                print('redirect login')
                 return RedirectResponse(url="/login", status_code=302)
             auth_dict = json.loads(auth)
             if 'username' in auth_dict and auth_dict['username'] != token:
+                # print('aaaa')
                 return RedirectResponse(url="/login", status_code=302)
             if 'expire' in auth_dict:
                 now = datetime.datetime.now()
@@ -3249,17 +3271,18 @@ class RedirectMiddleware(BaseHTTPMiddleware):
                     if "audio.wav" in request.url.path:
                         return await call_next(request)
                     request.scope['path'] = '/login'
-                    
+
                     headers = dict(request.scope['headers'])
                     headers[b'custom-header'] = b'my custom header'
                     request.scope['headers'] = [(k, v)
                                                 for k, v in headers.items()]
-                    response = await call_next(request)
-                    response.background = BackgroundTask(check_false_session)
-
-                    return response
+                    # response = await call_next(request)
+                    # response.background = BackgroundTask(check_false_session)
+                    print('redirect to login now')
+                    return RedirectResponse(url="/login", status_code=303)
 
         # Continue with the regular flow if no redirection is needed
+        print(request.url, 'last try')
         return await call_next(request)
 
 
@@ -3344,7 +3367,7 @@ async def login(username: str = Form(...), password: str = Form(...)):
             f.write(json.dumps(
                 {'is_online': True, 'username': username, 'expire': expired.strftime("%Y%m%d%H%M%S")}))
         redirect_response = RedirectResponse("/home", 302)
-        redirect_response.set_cookie(key="token", value=username)
+        redirect_response.set_cookie(key="token", value=username, expires=30*60)
         return redirect_response
     raise HTTPException(
         status_code=401,
@@ -3365,6 +3388,11 @@ async def logout(background_tasks: BackgroundTasks):
     background_tasks.add_task(check_false_session)
     return redirect_response
 
+
+@appF.get("/", response_class=RedirectResponse, include_in_schema=False)
+async def index():
+    """docs"""
+    return "/docs"
 
 appF = gr.mount_gradio_app(appF, app, "/home")
 port = 7866
