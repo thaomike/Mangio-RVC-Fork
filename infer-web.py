@@ -443,6 +443,7 @@ def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins, agg, format
         )
         if model_name == "onnx_dereverb_By_FoxJoy":
             pre_fun = MDXNetDereverb(15)
+            # print('hii')
         else:
             func = _audio_pre_ if "DeEcho" not in model_name else _audio_pre_new
             pre_fun = func(
@@ -3246,13 +3247,13 @@ class RedirectMiddleware(BaseHTTPMiddleware):
             print('not token, redirect to login')
             return RedirectResponse(url="/login", status_code=302)
 
-        if request.method == 'POST' and 'predict' in request.url.path:
-            print('predict go ahead')
-            background_tasks = BackgroundTask(check_false_session)
+        # if request.method == 'POST' and 'predict' in request.url.path:
+        #     print('predict go ahead')
+        #     background_tasks = BackgroundTask(check_false_session)
 
-            response = RedirectResponse(
-                url="/home", status_code=303, headers={"token": "deleted", "time": "hi"}, background=background_tasks)
-            return response
+        #     response = RedirectResponse(
+        #         url="/home", status_code=303, headers={"token": "deleted", "time": "hi"}, background=background_tasks)
+        #     return response
         with open("auth/session.auth", "r") as f:
             auth = f.readline()
             if not auth:
@@ -3262,27 +3263,26 @@ class RedirectMiddleware(BaseHTTPMiddleware):
             if 'username' in auth_dict and auth_dict['username'] != token:
                 # print('aaaa')
                 return RedirectResponse(url="/login", status_code=302)
-            if 'expire' in auth_dict:
-                now = datetime.datetime.now()
-                expired = datetime.datetime.strptime(
-                    auth_dict['expire'], "%Y%m%d%H%M%S")
-                if now > expired:
+            # if 'expire' in auth_dict:
+            #     now = datetime.datetime.now()
+            #     expired = datetime.datetime.strptime(
+            #         auth_dict['expire'], "%Y%m%d%H%M%S")
+            #     if now > expired:
 
-                    if "audio.wav" in request.url.path:
-                        return await call_next(request)
-                    request.scope['path'] = '/login'
+            #         if "audio.wav" in request.url.path:
+            #             return await call_next(request)
+            #         request.scope['path'] = '/login'
 
-                    headers = dict(request.scope['headers'])
-                    headers[b'custom-header'] = b'my custom header'
-                    request.scope['headers'] = [(k, v)
-                                                for k, v in headers.items()]
-                    # response = await call_next(request)
-                    # response.background = BackgroundTask(check_false_session)
-                    print('redirect to login now')
-                    return RedirectResponse(url="/login", status_code=303)
+            #         headers = dict(request.scope['headers'])
+            #         headers[b'custom-header'] = b'my custom header'
+            #         request.scope['headers'] = [(k, v)
+            #                                     for k, v in headers.items()]
+            #         # response = await call_next(request)
+            #         # response.background = BackgroundTask(check_false_session)
+            #         print('redirect to login now')
+            #         return RedirectResponse(url="/login", status_code=303)
 
         # Continue with the regular flow if no redirection is needed
-        print(request.url, 'last try')
         return await call_next(request)
 
 
@@ -3344,7 +3344,7 @@ async def login(username: str = Form(...), password: str = Form(...)):
                 now = datetime.datetime.now()
                 expired = datetime.datetime.strptime(
                     auth['expire'], "%Y%m%d%H%M%S")
-                if now < expired:
+                if now < expired and username != username_auth:
                     raise HTTPException(
                         status_code=403,
                         detail="Hệ thống hiện tại chỉ được phép 1 người sử dụng. Xin vui lòng chờ hoặc liên hệ với user là: " +
@@ -3394,7 +3394,7 @@ async def index():
     """docs"""
     return "/docs"
 
-appF = gr.mount_gradio_app(appF, app, "/home")
+appF = gr.mount_gradio_app(appF, app.queue(concurrency_count=511, max_size=1022), "/home")
 port = 7866
 try:
     port = int(os.environ['PORT'])
